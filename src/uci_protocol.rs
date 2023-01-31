@@ -1,23 +1,20 @@
-use std::sync::mpsc::{channel, Sender};
-use std::thread;
+use std::sync::mpsc::Sender;
 
 use cmdr::*;
 
-use crate::engine::Engine;
-use crate::uci_options::UciOptions;
+use crate::engine_command::EngineCommand;
+use crate::search_options::SearchOptions;
 
 pub struct UciProtocol {
-    thread: Option<thread::JoinHandle<()>>,
-    sender: Option<Sender<bool>>,
-    options: UciOptions,
+    search_options: SearchOptions,
+    sender: Sender<EngineCommand>,
 }
 
 impl UciProtocol {
-    pub fn default() -> UciProtocol {
+    pub fn new(sender: Sender<EngineCommand>) -> UciProtocol {
         UciProtocol {
-            thread: None,
-            sender: None,
-            options: UciOptions::default(),
+            search_options: SearchOptions::default(),
+            sender,
         }
     }
 }
@@ -40,35 +37,26 @@ impl UciProtocol {
 
     #[cmd]
     fn quit(&self, _args: &[String]) -> CommandResult {
+        self.sender
+            .send(EngineCommand::quit())
+            .expect("Stop command could not be sent.");
         Ok(Action::Quit)
     }
 
     #[cmd]
-    fn go(&mut self, _args: &[String]) -> CommandResult {
-        if self.sender.is_some() {
-            self.sender.to_owned().unwrap().send(false).unwrap_or(());
-        }
-
-        let (tx, rx) = channel();
-        let mut engine = Engine::new(rx);
-        let options = self.options.clone();
-
-        self.thread = Some(thread::spawn(move || engine.search(options)));
-        self.sender = Some(tx);
-
+    fn go(&mut self, args: &[String]) -> CommandResult {
+        self.search_options.set_search_parameters(args);
+        self.sender
+            .send(EngineCommand::go(self.search_options.clone()))
+            .expect("Go command could not be sent.");
         Ok(Action::Done)
     }
 
     #[cmd]
     fn stop(&mut self, _args: &[String]) -> CommandResult {
-        if self.sender.is_none() {
-            return Ok(Action::Done);
-        }
-
-        self.sender.to_owned().unwrap().send(true).unwrap_or(());
-        self.thread = None;
-        self.sender = None;
-
+        self.sender
+            .send(EngineCommand::stop())
+            .expect("Stop command could not be sent.");
         Ok(Action::Done)
     }
 
@@ -78,32 +66,14 @@ impl UciProtocol {
     }
 
     #[cmd]
-    fn ucinewgame(&self, _args: &[String]) -> CommandResult {
+    fn ucinewgame(&mut self, _args: &[String]) -> CommandResult {
+        self.search_options.reset();
         Ok(Action::Done)
     }
 
     #[cmd]
     fn position(&mut self, args: &[String]) -> CommandResult {
-        self.options.reset_position();
-
-        if args[0] == "fen" {
-            let mut fen = args[1].to_string();
-            for partial in args[2..].as_ref() {
-                if partial == "moves" {
-                    break;
-                }
-                fen += &*String::from(" ");
-                fen += partial;
-            }
-            self.options.fen = fen;
-        }
-
-        let moves_start_index = args
-            .iter()
-            .position(|r| r == "moves")
-            .unwrap_or(args.len() - 1)
-            + 1;
-        self.options.played_moves = args[moves_start_index..].to_vec();
+        self.search_options.set_position(args);
         Ok(Action::Done)
     }
 }

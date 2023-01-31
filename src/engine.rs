@@ -1,23 +1,38 @@
-use std::sync::mpsc::{Receiver, TryRecvError};
+use std::sync::mpsc::Receiver;
 use std::{thread, time};
 
-use crate::uci_options::UciOptions;
+use crate::engine_command::EngineCommand;
+use crate::search_options::SearchOptions;
 
 pub struct Engine {
     best_move: String,
-    receiver: Receiver<bool>,
+    receiver: Receiver<EngineCommand>,
 }
 
 impl Engine {
-    pub fn new(receiver: Receiver<bool>) -> Engine {
+    pub fn new(receiver: Receiver<EngineCommand>) -> Engine {
         Engine {
             best_move: "bestmove None".to_string(),
             receiver,
         }
     }
 
-    pub fn search(&mut self, options: UciOptions) {
-        println!("{:?}", options);
+    pub fn start(&mut self) {
+        loop {
+            let command = self.receiver.recv().unwrap();
+
+            if command.quit {
+                break;
+            } else if command.stop {
+                continue;
+            }
+
+            self.search(command.search_options);
+        }
+    }
+
+    fn search(&mut self, search_options: SearchOptions) {
+        println!("{:?}", search_options);
 
         let mut depth = 0;
         loop {
@@ -30,21 +45,16 @@ impl Engine {
             thread::sleep(time::Duration::from_secs(2));
 
             if self.check_stop() {
+                println!("{}", self.best_move);
                 break;
             }
         }
     }
 
     fn check_stop(&self) -> bool {
-        match self.receiver.try_recv() {
-            Err(TryRecvError::Empty) => false,
-            Ok(true) | Err(TryRecvError::Disconnected) => {
-                println!("{}", self.best_move);
-                return true;
-            }
-            Ok(false) => {
-                return true;
-            }
-        }
+        self.receiver
+            .try_recv()
+            .unwrap_or(EngineCommand::default())
+            .stop
     }
 }

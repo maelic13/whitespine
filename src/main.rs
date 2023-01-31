@@ -1,10 +1,15 @@
 mod engine;
-mod uci_options;
+mod engine_command;
+mod search_options;
 mod uci_protocol;
 
-use uci_protocol::UciProtocol;
+use std::sync::mpsc::channel;
+use std::thread;
 
 use cmdr::{cmd_loop, Result};
+
+use crate::engine::Engine;
+use crate::uci_protocol::UciProtocol;
 
 fn main() -> Result<()> {
     println!(
@@ -13,6 +18,11 @@ fn main() -> Result<()> {
         env!("CARGO_PKG_VERSION"),
         env!("CARGO_PKG_AUTHORS").replace(':', ", ")
     );
-    cmd_loop(&mut UciProtocol::default())?;
+
+    let (tx, rx) = channel();
+    let mut engine = Engine::new(rx);
+    thread::spawn(move || engine.start());
+
+    cmd_loop(&mut UciProtocol::new(tx))?;
     Ok(())
 }
