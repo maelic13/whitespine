@@ -1,6 +1,8 @@
 use std::sync::mpsc::{Receiver, TryRecvError};
 use std::{thread, time};
 
+use crate::uci_options::UciOptions;
+
 pub struct Engine {
     best_move: String,
     receiver: Receiver<bool>,
@@ -14,7 +16,9 @@ impl Engine {
         }
     }
 
-    pub fn search(&mut self) {
+    pub fn search(&mut self, options: UciOptions) {
+        println!("{:?}", options);
+
         let mut depth = 0;
         loop {
             depth += 1;

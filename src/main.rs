@@ -1,4 +1,5 @@
 mod engine;
+mod uci_options;
 mod uci_protocol;
 
 use uci_protocol::UciProtocol;

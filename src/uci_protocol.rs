@@ -1,13 +1,15 @@
-use crate::engine::Engine;
-
 use std::sync::mpsc::{channel, Sender};
 use std::thread;
 
 use cmdr::*;
 
+use crate::engine::Engine;
+use crate::uci_options::UciOptions;
+
 pub struct UciProtocol {
     thread: Option<thread::JoinHandle<()>>,
     sender: Option<Sender<bool>>,
+    options: UciOptions,
 }
 
 impl UciProtocol {
@@ -15,6 +17,7 @@ impl UciProtocol {
         UciProtocol {
             thread: None,
             sender: None,
+            options: UciOptions::default(),
         }
     }
 }
@@ -48,7 +51,9 @@ impl UciProtocol {
 
         let (tx, rx) = channel();
         let mut engine = Engine::new(rx);
-        self.thread = Some(thread::spawn(move || engine.search()));
+        let options = self.options.clone();
+
+        self.thread = Some(thread::spawn(move || engine.search(options)));
         self.sender = Some(tx);
 
         Ok(Action::Done)
@@ -68,12 +73,37 @@ impl UciProtocol {
     }
 
     #[cmd]
+    fn setoption(&self, _args: &[String]) -> CommandResult {
+        Ok(Action::Done)
+    }
+
+    #[cmd]
     fn ucinewgame(&self, _args: &[String]) -> CommandResult {
         Ok(Action::Done)
     }
 
     #[cmd]
-    fn position(&self, _args: &[String]) -> CommandResult {
+    fn position(&mut self, args: &[String]) -> CommandResult {
+        self.options.reset_position();
+
+        if args[0] == "fen" {
+            let mut fen = args[1].to_string();
+            for partial in args[2..].as_ref() {
+                if partial == "moves" {
+                    break;
+                }
+                fen += &*String::from(" ");
+                fen += partial;
+            }
+            self.options.fen = fen;
+        }
+
+        let moves_start_index = args
+            .iter()
+            .position(|r| r == "moves")
+            .unwrap_or(args.len() - 1)
+            + 1;
+        self.options.played_moves = args[moves_start_index..].to_vec();
         Ok(Action::Done)
     }
 }
