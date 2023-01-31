@@ -1,5 +1,8 @@
+use std::str::FromStr;
 use std::sync::mpsc::Receiver;
-use std::{thread, time};
+
+use chess::{Board, ChessMove, MoveGen};
+use rand::seq::SliceRandom;
 
 use crate::engine_command::EngineCommand;
 use crate::search_options::SearchOptions;
@@ -12,7 +15,7 @@ pub struct Engine {
 impl Engine {
     pub fn new(receiver: Receiver<EngineCommand>) -> Engine {
         Engine {
-            best_move: "bestmove None".to_string(),
+            best_move: String::from("bestmove None"),
             receiver,
         }
     }
@@ -32,23 +35,14 @@ impl Engine {
     }
 
     fn search(&mut self, search_options: SearchOptions) {
-        println!("{:?}", search_options);
+        println!("info {:?}", search_options);
 
-        let mut depth = 0;
-        loop {
-            depth += 1;
-            println!(
-                "info depth {} seldepth 2 score cp 37 nodes 194 nps 97000 time 2 pv d2d4 d7d5",
-                depth
-            );
-            self.best_move = "bestmove d2d4".to_string();
-            thread::sleep(time::Duration::from_secs(2));
+        let board = Engine::get_current_board(search_options.fen, search_options.played_moves);
+        let movegen = MoveGen::new_legal(&board);
+        let moves: Vec<_> = movegen.collect();
 
-            if self.check_stop() {
-                println!("{}", self.best_move);
-                break;
-            }
-        }
+        let chosen_move = moves.choose(&mut rand::thread_rng()).unwrap();
+        println!("bestmove {}", chosen_move.to_string());
     }
 
     fn check_stop(&self) -> bool {
@@ -56,5 +50,15 @@ impl Engine {
             .try_recv()
             .unwrap_or(EngineCommand::default())
             .stop
+    }
+
+    fn get_current_board(fen: String, played_moves: Vec<String>) -> Board {
+        let mut board: Board =
+            Board::from_str(fen.as_str()).expect("Board could not be created from fen.");
+        for mv in played_moves {
+            board = board
+                .make_move_new(ChessMove::from_str(mv.as_str()).expect("Invalid move string."));
+        }
+        board
     }
 }
