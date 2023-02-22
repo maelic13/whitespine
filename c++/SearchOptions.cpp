@@ -2,7 +2,7 @@
 #include "SearchOptions.h"
 
 SearchOptions::SearchOptions() {
-    fen = START_POSITION;
+    fen = startPosition;
     playedMoves = std::vector<std::string>{};
     whiteTime = 0;
     whiteIncrement = 0;
@@ -25,7 +25,7 @@ void SearchOptions::setSearchParameters() {
 }
 
 void SearchOptions::resetPosition() {
-    fen = START_POSITION;
+    fen = startPosition;
     playedMoves = std::vector<std::string>{};
 }
 

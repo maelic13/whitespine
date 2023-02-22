@@ -5,14 +5,18 @@
 
 class Engine {
 public:
-    bool go;
-    SearchOptions searchOptions;
+    explicit Engine(SearchOptions &searchOptions, std::atomic_bool &go, std::atomic_bool &quit,
+                    std::mutex &m, std::condition_variable &cv);
 
-    explicit Engine(SearchOptions searchOptions);
-
-    void start();
+    [[noreturn]] void start();
 
 private:
+    std::atomic_bool &go;
+    std::atomic_bool &quit;
+    std::mutex &m;
+    std::condition_variable &cv;
+    SearchOptions &searchOptions;
+
     void search();
 };
 

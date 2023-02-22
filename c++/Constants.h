@@ -3,7 +3,12 @@
 
 #include <string>
 
-const std::string START_POSITION = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
-const int INFINITE_DEPTH = 1000;
+const std::string engineName = "Engine";
+const std::string engineVersion = "0.1";
+const std::string engineAuthors = "Miloslav Macurek";
+
+
+const std::string startPosition = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+const int infiniteDepth = 1000;
 
 #endif //ENGINE_CONSTANTS_H

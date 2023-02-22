@@ -1,26 +1,34 @@
 #ifndef ENGINE_UCIPROTOCOL_H
 #define ENGINE_UCIPROTOCOL_H
 
+#include <mutex>
 #include <thread>
 
-#include "Engine.h"
-#include "UCIPROTOCOL.h"
+#include "SearchOptions.h"
 
 class UciProtocol {
 public:
-    UciProtocol(std::thread &engineThread, Engine &engine);
+    UciProtocol(SearchOptions &searchOptions, std::atomic_bool &go, std::atomic_bool &quit,
+                std::mutex &m, std::condition_variable &cv);
 
-    void start();
+    void Start();
 
-    void go();
+    static void Uci();
 
-    void stop();
+    void Go();
 
-    void quit();
+    void Stop();
+
+    void Quit();
 
 private:
-    std::thread &engineThread;
-    Engine &engine;
+    std::atomic_bool &go;
+    std::atomic_bool &quit;
+    std::mutex &m;
+    std::condition_variable &cv;
+    SearchOptions &searchOptions;
+
+    static void IsReady();
 };
 
 #endif //ENGINE_UCIPROTOCOL_H
