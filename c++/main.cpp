@@ -7,7 +7,7 @@
 #include "UciProtocol.h"
 
 int main() {
-    std::cout << engineName << " " << engineVersion << " by " << engineAuthors << std::endl;
+    std::cout << engineName << " " << engineVersion << " by " << engineAuthor << std::endl;
 
     std::atomic_bool go = false;
     std::atomic_bool quit = false;

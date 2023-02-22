@@ -27,7 +27,7 @@ void UciProtocol::Start() {
 
 void UciProtocol::Uci() {
     std::cout << "id name " << engineName << " " << engineVersion << std::endl;
-    std::cout << "id authors " << engineAuthors << std::endl;
+    std::cout << "id author " << engineAuthor << std::endl;
     std::cout << "uciok" << std::endl;
 }
 

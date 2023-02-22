@@ -5,7 +5,7 @@
 
 const std::string engineName = "Engine";
 const std::string engineVersion = "0.1";
-const std::string engineAuthors = "Miloslav Macurek";
+const std::string engineAuthor = "Miloslav Macurek";
 
 
 const std::string startPosition = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
