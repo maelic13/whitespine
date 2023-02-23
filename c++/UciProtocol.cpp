@@ -9,15 +9,20 @@ UciProtocol::UciProtocol(
         std::mutex &m, std::condition_variable &cv
 ) : searchOptions(searchOptions), go(go), quit(quit), m(m), cv(cv) {}
 
-void UciProtocol::Start() {
-    std::string command;
+void UciProtocol::UciLoop() {
+    std::string input;
     while (true) {
-        getline(std::cin, command);
+        getline(std::cin, input);
+        std::string command = input.substr(0, input.find(' '));
+        std::string args = input.substr(input.find(' ') + 1);
 
         if (command == "uci") Uci();
         if (command == "isready") IsReady();
-        if (command == "go") Go();
+        if (command == "go") Go(args);
         if (command == "stop") Stop();
+        if (command == "setoption") SetOption(args);
+        if (command == "ucinewgame") UciNewGame();
+        if (command == "position") Position(args);
         if (command == "quit") {
             Quit();
             break;
@@ -40,11 +45,16 @@ void UciProtocol::Quit() {
     cv.notify_one();
 }
 
-void UciProtocol::Go() {
+void UciProtocol::Go(const std::string &args) {
+    if (args != "go") std::cout << "go command called with arguments: " << args << std::endl;
     go = true;
     cv.notify_one();
 }
 
 void UciProtocol::Stop() {
     go = false;
+}
+
+void UciProtocol::SetOption(const std::string &) {
+    std::cout << "No engine options currently supported." << std::endl;
 }

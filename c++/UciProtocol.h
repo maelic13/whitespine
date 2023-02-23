@@ -11,15 +11,7 @@ public:
     UciProtocol(SearchOptions &searchOptions, std::atomic_bool &go, std::atomic_bool &quit,
                 std::mutex &m, std::condition_variable &cv);
 
-    void Start();
-
-    static void Uci();
-
-    void Go();
-
-    void Stop();
-
-    void Quit();
+    void UciLoop();
 
 private:
     std::atomic_bool &go;
@@ -29,6 +21,16 @@ private:
     SearchOptions &searchOptions;
 
     static void IsReady();
+
+    static void Uci();
+
+    void Go(const std::string &);
+
+    void Stop();
+
+    void Quit();
+
+    static void SetOption(const std::string &);
 };
 
 #endif //ENGINE_UCIPROTOCOL_H

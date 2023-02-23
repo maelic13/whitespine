@@ -5,14 +5,21 @@
 
 using namespace std::chrono_literals;
 
-Engine::Engine(SearchOptions &searchOptions, std::atomic_bool &go, std::atomic_bool &quit,
-               std::mutex &m, std::condition_variable &cv
-               ) : searchOptions(searchOptions), go(go), quit(quit), m(m), cv(cv) {}
+Engine::Engine(Options options) {
+    m = &Options::m;
+    cv = &Options::cv;
+
+    go = options.go;
+    quit = options.quit;
+
+    engineOptions = options.engineOptions;
+    searchOptions = options.searchOptions;
+}
 
 [[noreturn]] void Engine::start() {
     while (true) {
         std::unique_lock lk(m);
-        cv.wait(lk, [&]{return go || quit;});
+        cv.wait(lk, [&] { return go || quit; });
 
         if (quit) {
             lk.unlock();
