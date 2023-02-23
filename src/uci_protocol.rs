@@ -1,6 +1,5 @@
+use std::io;
 use std::sync::mpsc::Sender;
-
-use cmdr::*;
 
 use crate::engine_command::EngineCommand;
 use crate::search_options::SearchOptions;
@@ -19,61 +18,83 @@ impl UciProtocol {
     }
 }
 
-#[cmdr]
 impl UciProtocol {
-    #[cmd]
-    fn uci(&self, _args: &[String]) -> CommandResult {
+    pub fn uci_loop(&mut self) {
+        loop {
+            let mut input = String::new();
+            io::stdin()
+                .read_line(&mut input)
+                .expect("error: unable to read user input");
+            let input: Vec<String> = input.split_whitespace().map(str::to_string).collect();
+            let command: &String = &input[0];
+            let args: &[String] = &input[1..];
+
+            if command == "uci" {
+                self.uci();
+            }
+            if command == "isready" {
+                self.isready();
+            }
+            if command == "quit" {
+                self.quit();
+                break;
+            }
+            if command == "go" {
+                self.go(args);
+            }
+            if command == "stop" {
+                self.stop();
+            }
+            if command == "setoption" {
+                self.setoption(args);
+            }
+            if command == "ucinewgame" {
+                self.isready();
+            }
+            if command == "position" {
+                self.position(args);
+            }
+        }
+    }
+
+    fn uci(&self) {
         println!("id name {}", env!("CARGO_PKG_NAME"));
         println!("id author {}", env!("CARGO_PKG_AUTHORS").replace(':', ", "));
         println!("uciok");
-        Ok(Action::Done)
     }
 
-    #[cmd]
-    fn isready(&self, _args: &[String]) -> CommandResult {
+    fn isready(&self) {
         println!("readyok");
-        Ok(Action::Done)
     }
 
-    #[cmd]
-    fn quit(&self, _args: &[String]) -> CommandResult {
+    fn quit(&self) {
         self.sender
             .send(EngineCommand::quit())
             .expect("Stop command could not be sent.");
-        Ok(Action::Quit)
     }
 
-    #[cmd]
-    fn go(&mut self, args: &[String]) -> CommandResult {
+    fn go(&mut self, args: &[String]) {
         self.search_options.set_search_parameters(args);
         self.sender
             .send(EngineCommand::go(self.search_options.clone()))
             .expect("Go command could not be sent.");
-        Ok(Action::Done)
     }
 
-    #[cmd]
-    fn stop(&mut self, _args: &[String]) -> CommandResult {
+    fn stop(&mut self) {
         self.sender
             .send(EngineCommand::stop())
             .expect("Stop command could not be sent.");
-        Ok(Action::Done)
     }
 
-    #[cmd]
-    fn setoption(&self, _args: &[String]) -> CommandResult {
-        Ok(Action::Done)
+    fn setoption(&self, _args: &[String]) {
+        println!("No engine options currently supported.");
     }
 
-    #[cmd]
-    fn ucinewgame(&mut self, _args: &[String]) -> CommandResult {
+    fn ucinewgame(&mut self) {
         self.search_options.reset();
-        Ok(Action::Done)
     }
 
-    #[cmd]
-    fn position(&mut self, args: &[String]) -> CommandResult {
+    fn position(&mut self, args: &[String]) {
         self.search_options.set_position(args);
-        Ok(Action::Done)
     }
 }

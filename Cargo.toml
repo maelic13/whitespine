@@ -8,5 +8,4 @@ edition = "2021"
 
 [dependencies]
 chess = "3.2.0"
-cmdr = "0.3.12"
 rand = "0.8.5"

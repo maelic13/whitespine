@@ -6,12 +6,10 @@ mod uci_protocol;
 use std::sync::mpsc::channel;
 use std::thread;
 
-use cmdr::{cmd_loop, Result};
-
 use crate::engine::Engine;
 use crate::uci_protocol::UciProtocol;
 
-fn main() -> Result<()> {
+fn main() {
     println!(
         "{} {} by {}",
         env!("CARGO_PKG_NAME"),
@@ -23,6 +21,5 @@ fn main() -> Result<()> {
     let mut engine = Engine::new(rx);
     thread::spawn(move || engine.start());
 
-    cmd_loop(&mut UciProtocol::new(tx))?;
-    Ok(())
+    UciProtocol::new(tx).uci_loop();
 }
