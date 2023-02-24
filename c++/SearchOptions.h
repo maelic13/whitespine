@@ -16,15 +16,11 @@ public:
 
     SearchOptions();
 
-    void reset();
+    void Reset();
 
-    void setPosition();
+    void ResetPosition();
 
-    void setSearchParameters();
-
-    void resetPosition();
-
-    void resetSearchParameters();
+    void ResetSearchParameters();
 };
 
 #endif //ENGINE_SEARCHOPTIONS_H

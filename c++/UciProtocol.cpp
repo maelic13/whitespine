@@ -12,11 +12,13 @@ UciProtocol::UciProtocol(
           m(m), cv(cv) {}
 
 void UciProtocol::UciLoop() {
-    std::string input;
+    std::string args, command, input;
     while (true) {
         getline(std::cin, input);
-        std::string command = input.substr(0, input.find(' '));
-        std::string args = input.substr(input.find(' ') + 1);
+        auto pos = input.find(' ');
+        command = input.substr(0, pos);
+        if (pos != std::string::npos) args = input.substr(pos + 1);
+        else args = "";
 
         if (command == "uci") Uci();
         if (command == "isready") IsReady();
@@ -48,7 +50,7 @@ void UciProtocol::Quit() {
 }
 
 void UciProtocol::Go(const std::string &args) {
-    if (args != "go") std::cout << "go command called with arguments: " << args << std::endl;
+    std::cout << "go command called with arguments: " << args << std::endl;
     go = true;
     cv.notify_one();
 }
@@ -62,10 +64,9 @@ void UciProtocol::SetOption(const std::string &) {
 }
 
 void UciProtocol::UciNewGame() {
-
+    searchOptions.ResetPosition();
 }
 
 void UciProtocol::Position(const std::string &args) {
-    if (args != "position") std::cout << "position command called with arguments: " << args << std::endl;
-    else std::cout << "position command called with no arguments!" << std::endl;
+    std::cout << "position command called with arguments: " << args << std::endl;
 }

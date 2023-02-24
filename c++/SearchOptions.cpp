@@ -11,25 +11,17 @@ SearchOptions::SearchOptions() {
     depth = 2;
 }
 
-void SearchOptions::reset() {
-    resetPosition();
-    resetSearchParameters();
+void SearchOptions::Reset() {
+    ResetPosition();
+    ResetSearchParameters();
 }
 
-void SearchOptions::setPosition() {
-
-}
-
-void SearchOptions::setSearchParameters() {
-
-}
-
-void SearchOptions::resetPosition() {
+void SearchOptions::ResetPosition() {
     fen = startPosition;
     playedMoves = std::vector<std::string>{};
 }
 
-void SearchOptions::resetSearchParameters() {
+void SearchOptions::ResetSearchParameters() {
     whiteTime = 0;
     whiteIncrement = 0;
     blackTime = 0;
