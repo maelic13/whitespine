@@ -36,13 +36,17 @@ impl Engine {
 
     fn search(&mut self, search_options: SearchOptions) {
         println!("info {:?}", search_options);
+        if self.check_stop() {
+            return;
+        }
 
         let board = Engine::get_current_board(search_options.fen, search_options.played_moves);
         let movegen = MoveGen::new_legal(&board);
         let moves: Vec<_> = movegen.collect();
 
         let chosen_move = moves.choose(&mut rand::thread_rng()).unwrap();
-        println!("bestmove {}", chosen_move.to_string());
+        self.best_move = chosen_move.to_string();
+        println!("bestmove {}", self.best_move);
     }
 
     fn check_stop(&self) -> bool {

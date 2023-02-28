@@ -16,9 +16,7 @@ impl UciProtocol {
             sender,
         }
     }
-}
 
-impl UciProtocol {
     pub fn uci_loop(&mut self) {
         loop {
             let mut input = String::new();
@@ -26,33 +24,22 @@ impl UciProtocol {
                 .read_line(&mut input)
                 .expect("error: unable to read user input");
             let input: Vec<String> = input.split_whitespace().map(str::to_string).collect();
-            let command: &String = &input[0];
+            let command: &str = &input[0];
             let args: &[String] = &input[1..];
 
-            if command == "uci" {
-                self.uci();
-            }
-            if command == "isready" {
-                self.isready();
-            }
-            if command == "quit" {
-                self.quit();
-                break;
-            }
-            if command == "go" {
-                self.go(args);
-            }
-            if command == "stop" {
-                self.stop();
-            }
-            if command == "setoption" {
-                self.setoption(args);
-            }
-            if command == "ucinewgame" {
-                self.isready();
-            }
-            if command == "position" {
-                self.position(args);
+            match command {
+                "uci" => self.uci(),
+                "isready" => self.isready(),
+                "go" => self.go(args),
+                "stop" => self.stop(),
+                "setoption" => self.setoption(args),
+                "ucinewgame" => self.ucinewgame(),
+                "position" => self.position(args),
+                "quit" => {
+                    self.quit();
+                    break;
+                }
+                _ => continue,
             }
         }
     }
