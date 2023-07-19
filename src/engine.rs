@@ -41,8 +41,8 @@ impl Engine {
         }
 
         let board = Engine::get_current_board(search_options.fen, search_options.played_moves);
-        let movegen = MoveGen::new_legal(&board);
-        let moves: Vec<_> = movegen.collect();
+        let move_gen = MoveGen::new_legal(&board);
+        let moves: Vec<_> = move_gen.collect();
 
         let chosen_move = moves.choose(&mut rand::thread_rng()).unwrap();
         self.best_move = chosen_move.to_string();
