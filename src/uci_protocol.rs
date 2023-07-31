@@ -24,6 +24,7 @@ impl UciProtocol {
                 .read_line(&mut input)
                 .expect("error: unable to read user input");
             let input: Vec<String> = input.split_whitespace().map(str::to_string).collect();
+            if input.is_empty() { continue; }
             let command: &str = &input[0];
             let args: &[String] = &input[1..];
 
