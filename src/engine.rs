@@ -50,10 +50,10 @@ impl Engine {
     }
 
     fn check_stop(&self) -> bool {
-        self.receiver
+        let command = self.receiver
             .try_recv()
-            .unwrap_or(EngineCommand::default())
-            .stop
+            .unwrap_or(EngineCommand::default());
+        command.stop || command.quit
     }
 
     fn get_current_board(fen: String, played_moves: Vec<String>) -> Board {
