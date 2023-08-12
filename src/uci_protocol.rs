@@ -24,7 +24,9 @@ impl UciProtocol {
                 .read_line(&mut input)
                 .expect("error: unable to read user input");
             let input: Vec<String> = input.split_whitespace().map(str::to_string).collect();
-            if input.is_empty() { continue; }
+            if input.is_empty() {
+                continue;
+            }
             let command: &str = &input[0];
             let args: &[String] = &input[1..];
 
@@ -48,6 +50,9 @@ impl UciProtocol {
     fn uci(&self) {
         println!("id name {}", env!("CARGO_PKG_NAME"));
         println!("id author {}", env!("CARGO_PKG_AUTHORS").replace(':', ", "));
+        for option in SearchOptions::get_uci_options() {
+            println!("{}", option);
+        }
         println!("uciok");
     }
 
@@ -74,8 +79,8 @@ impl UciProtocol {
             .expect("Stop command could not be sent.");
     }
 
-    fn setoption(&self, _args: &[String]) {
-        println!("No engine options currently supported.");
+    fn setoption(&mut self, args: &[String]) {
+        self.search_options.set_option(args);
     }
 
     fn ucinewgame(&mut self) {

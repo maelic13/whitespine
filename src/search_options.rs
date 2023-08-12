@@ -1,36 +1,52 @@
-const START_POSITION: &str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
-const INFINITE_DEPTH: usize = 1000;
+use chess::{Board, ChessMove};
+use std::path::PathBuf;
+use std::str::FromStr;
 
 #[derive(Debug, Clone)]
 pub struct SearchOptions {
-    pub fen: String,
-    pub played_moves: Vec<String>,
+    pub board: Board,
+
     pub white_time: usize,
     pub white_increment: usize,
     pub black_time: usize,
     pub black_increment: usize,
-    pub depth: usize,
+    pub depth: f64,
+
+    pub fifty_moves_rule: bool,
+    pub syzygy_path: Option<PathBuf>,
 }
 
 impl SearchOptions {
     pub fn default() -> SearchOptions {
         SearchOptions {
-            fen: String::from(START_POSITION),
-            played_moves: vec![],
+            board: Board::default(),
+
             white_time: 0,
             white_increment: 0,
             black_time: 0,
             black_increment: 0,
-            depth: 2,
+            depth: f64::INFINITY,
+
+            fifty_moves_rule: true,
+            syzygy_path: None,
         }
     }
 
+    pub fn get_uci_options() -> Vec<String> {
+        Vec::from([
+            String::from("option name Syzygy50MoveRule type check default true"),
+            String::from("option name SyzygyPath type string default <empty>"),
+        ])
+    }
+
     pub fn reset(&mut self) {
-        self.reset_position();
-        self.reset_search_parameters();
+        self.board = Board::default();
+        self.reset_temporary_parameters();
     }
 
     pub fn set_position(&mut self, args: &[String]) {
+        let mut board = Board::default();
+
         if args[0] == "fen" {
             let mut fen = args[1].to_string();
             for partial in args[2..].as_ref() {
@@ -40,7 +56,7 @@ impl SearchOptions {
                 fen += &*String::from(" ");
                 fen += partial;
             }
-            self.fen = fen;
+            board = Board::from_str(fen.as_str()).expect("Board could not be created from fen.");
         }
 
         let moves_start_index = args
@@ -48,16 +64,27 @@ impl SearchOptions {
             .position(|r| r == "moves")
             .unwrap_or(args.len() - 1)
             + 1;
-        self.played_moves = args[moves_start_index..].to_vec();
+        let played_moves = args[moves_start_index..].to_vec();
+
+        for mv in played_moves {
+            board = board
+                .make_move_new(ChessMove::from_str(mv.as_str()).expect("Invalid move string."));
+        }
+
+        self.board = board;
     }
 
     pub fn set_search_parameters(&mut self, args: &[String]) {
-        self.reset_search_parameters();
+        self.reset_temporary_parameters();
 
         let infinite_index = args.iter().position(|r| r == "infinite");
         if infinite_index.is_some() {
-            self.depth = INFINITE_DEPTH;
+            self.depth = f64::INFINITY;
             return;
+        }
+
+        if args.is_empty() {
+            self.depth = 2.;
         }
 
         let white_time_index = args.iter().position(|r| r == "wtime");
@@ -83,16 +110,25 @@ impl SearchOptions {
         }
     }
 
-    fn reset_position(&mut self) {
-        self.fen = String::from(START_POSITION);
-        self.played_moves = vec![];
+    pub fn set_option(&mut self, args: &[String]) {
+        let option_name: &str = &args[1].clone().to_lowercase();
+        let value = args[3..].join(" ").to_lowercase();
+
+        match option_name {
+            "syzygypath" => {
+                let path = PathBuf::from(value);
+                self.syzygy_path = if path.exists() { Some(path) } else { None };
+            }
+            "syzygy50moverule" => self.fifty_moves_rule = value == "true",
+            _ => {}
+        }
     }
 
-    fn reset_search_parameters(&mut self) {
+    fn reset_temporary_parameters(&mut self) {
         self.white_time = 0;
         self.white_increment = 0;
         self.black_time = 0;
         self.black_increment = 0;
-        self.depth = 2;
+        self.depth = f64::INFINITY;
     }
 }

@@ -2,6 +2,8 @@ mod engine;
 mod engine_command;
 mod search_options;
 mod uci_protocol;
+mod heuristic;
+mod piece_value;
 
 use std::sync::mpsc::channel;
 use std::thread;
@@ -10,8 +12,11 @@ use crate::engine::Engine;
 use crate::uci_protocol::UciProtocol;
 
 fn main() {
-    println!("{} {} by {}", env!("CARGO_PKG_NAME"), env!("CARGO_PKG_VERSION"),
-             env!("CARGO_PKG_AUTHORS").replace(':', ", ")
+    println!(
+        "{} {} by {}",
+        env!("CARGO_PKG_NAME"),
+        env!("CARGO_PKG_VERSION"),
+        env!("CARGO_PKG_AUTHORS").replace(':', ", ")
     );
 
     let (tx, rx) = channel();
