@@ -1,9 +1,9 @@
 mod engine;
 mod engine_command;
-mod search_options;
-mod uci_protocol;
 mod heuristic;
 mod piece_value;
+mod search_options;
+mod uci_protocol;
 
 use std::sync::mpsc::channel;
 use std::thread;

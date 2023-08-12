@@ -45,7 +45,10 @@ impl Engine {
         // start with random move choice, to be used in case of timeout before first depth is reached
         let move_gen = MoveGen::new_legal(&board);
         let possible_moves: Vec<_> = move_gen.collect();
-        let mut moves: Vec<ChessMove> = vec![possible_moves.choose(&mut rand::thread_rng()).unwrap().to_owned()];
+        let mut moves: Vec<ChessMove> = vec![possible_moves
+            .choose(&mut rand::thread_rng())
+            .unwrap()
+            .to_owned()];
 
         let mut stop_watch = Stopwatch::new();
         stop_watch.start();
@@ -76,21 +79,32 @@ impl Engine {
 
             println!(
                 "info depth {} score cp {} nodes {} nps {} time {} pv {}",
-                depth, evaluation as usize, nodes_searched,
+                depth,
+                evaluation as usize,
+                nodes_searched,
                 (nodes_searched as f64 / stop_watch.elapsed().as_secs() as f64) as usize,
-                stop_watch.elapsed().as_secs(), string_moves.join(" ")
+                stop_watch.elapsed().as_secs(),
+                string_moves.join(" ")
             )
         }
 
         println!("bestmove {}", &moves[0].to_string());
     }
 
-    fn negamax(&self, game: Game, depth: f64, mut alpha: f64, beta: f64) -> Result<(f64, Vec<ChessMove>, usize), &'static str> {
-        if self.check_stop() { return Err("Calculation stopped.") }
+    fn negamax(&self, game: Game, depth: f64, mut alpha: f64, beta: f64
+    ) -> Result<(f64, Vec<ChessMove>, usize), &'static str> {
+        if self.check_stop() {
+            return Err("Calculation stopped.");
+        }
+
         let mut nodes_searched: usize = 1;
 
         if game.current_position().status() != BoardStatus::Ongoing || depth == 0. {
-            return Ok((self.heuristic.clone().evaluate(game), vec![], nodes_searched));
+            return Ok((
+                self.heuristic.clone().evaluate(game),
+                vec![],
+                nodes_searched,
+            ));
         }
 
         let move_gen = MoveGen::new_legal(&game.current_position());
@@ -110,9 +124,7 @@ impl Engine {
                     nodes_searched += nodes;
                     moves = pv;
                 }
-                Err(message) => {
-                    return Err(message)
-                }
+                Err(message) => return Err(message),
             }
 
             evaluation *= -1.;
