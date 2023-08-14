@@ -1,8 +1,10 @@
-use std::sync::mpsc::Receiver;
+use std::sync::mpsc::{channel, Receiver};
 
-use chess::{Board, BoardStatus, ChessMove, Game, MoveGen, Piece, Square};
+use chess::{Board, BoardStatus, ChessMove, Color, Game, MoveGen, Piece, Square};
+use chrono::Duration;
 use rand::seq::SliceRandom;
 use stopwatch::Stopwatch;
+use timer::{Guard, Timer};
 
 use crate::engine_command::EngineCommand;
 use crate::heuristic::Heuristic;
@@ -12,6 +14,9 @@ use crate::search_options::SearchOptions;
 pub struct Engine {
     heuristic: Heuristic,
     receiver: Receiver<EngineCommand>,
+    timer: Timer,
+    timer_guard: Option<Guard>,
+    timer_receiver: Option<Receiver<bool>>,
 }
 
 impl Engine {
@@ -19,6 +24,9 @@ impl Engine {
         Engine {
             heuristic: Heuristic::default(),
             receiver,
+            timer: Timer::new(),
+            timer_guard: None,
+            timer_receiver: None,
         }
     }
 
@@ -33,6 +41,7 @@ impl Engine {
             }
 
             self.initialize_heuristic(&command.search_options);
+            self.start_timer(&command.search_options);
             self.search(command.search_options.board, command.search_options.depth);
         }
     }
@@ -44,11 +53,17 @@ impl Engine {
 
     fn check_stop(&self) -> bool {
         let command = self.receiver.try_recv().unwrap_or(EngineCommand::default());
-        command.stop || command.quit
+        let timeout;
+        if self.timer_receiver.is_some() {
+            timeout = self.timer_receiver.as_ref().unwrap().try_recv().unwrap_or(false);
+        } else {
+            timeout = false;
+        }
+        return command.stop || command.quit || timeout;
     }
 
     fn search(&mut self, board: Board, max_depth: f64) {
-        /* start with random move choice, to be used in case of timeout before first depth is reached */
+        // start with random move choice, to be used in case of timeout before first depth is reached
         let move_gen = MoveGen::new_legal(&board);
         let possible_moves: Vec<_> = move_gen.collect();
         let mut moves: Vec<ChessMove> = vec![possible_moves
@@ -106,11 +121,7 @@ impl Engine {
         let mut nodes_searched: usize = 1;
 
         if game.current_position().status() != BoardStatus::Ongoing {
-            return Ok((
-                self.heuristic.evaluate(game),
-                vec![],
-                nodes_searched,
-            ));
+            return Ok((self.heuristic.evaluate(game), vec![], nodes_searched));
         }
         if depth == 0. {
             let evaluation: f64;
@@ -122,11 +133,7 @@ impl Engine {
                 }
                 Err(message) => return Err(message),
             }
-            return Ok((
-                evaluation,
-                vec![],
-                nodes_searched
-            ))
+            return Ok((evaluation, vec![], nodes_searched))
         }
 
         let move_gen = MoveGen::new_legal(&game.current_position());
@@ -197,11 +204,11 @@ impl Engine {
                 + piece_value.pawn_value < alpha) {
                 continue
             }
-            
+
             let mut current_game = game.clone();
             current_game.make_move(chess_move);
             nodes_searched += 1;
-            
+
             let score: f64;
             let result = self.quiescence(&current_game, -beta, -alpha);
             match result {
@@ -211,7 +218,7 @@ impl Engine {
                 }
                 Err(message) => return Err(message),
             }
-            
+
             if score >= beta {
                 return Ok((beta, nodes_searched));
             }
@@ -219,10 +226,10 @@ impl Engine {
                 alpha = score;
             }
         }
-        
+
         return Ok((alpha, nodes_searched))
     }
-    
+
     fn get_captures_and_checks(board: &Board) -> Vec<(ChessMove, bool, bool)> {
         let mut captures_and_checks: Vec<(ChessMove, bool, bool)> = vec![];
         let move_gen = MoveGen::new_legal(board);
@@ -244,5 +251,39 @@ impl Engine {
         }
         
         return captures_and_checks;
+    }
+
+    fn start_timer(&mut self, search_options: &SearchOptions) {
+        /* Start timer which will send timeout message. */
+        if !search_options.has_time_options() {
+            // do not start timer
+            return;
+        }
+
+        let mut time_for_move: Option<f64> = None;
+        let time_flex: f64 = 10.;
+
+        if search_options.move_time != 0 {
+            time_for_move = Some(search_options.move_time as f64 - time_flex);
+        }
+        if search_options.board.side_to_move() == Color::White && search_options.white_time != 0 {
+            time_for_move = Some(0.2 * search_options.white_time as f64 - time_flex)
+        }
+        if search_options.board.side_to_move() == Color::Black && search_options.black_time != 0 {
+            time_for_move = Some(0.2 * search_options.black_time as f64 - time_flex)
+        }
+
+        if time_for_move.is_none() {
+            // wrong options, do not start timer
+            return
+        }
+
+        let (tx, rx) = channel();
+        self.timer_receiver = Some(rx);
+
+        self.timer_guard = Some(self.timer.schedule_with_delay(
+            Duration::milliseconds(time_for_move.unwrap() as i64), move || {
+                tx.send(true).expect("Timeout message could not be sent.");
+        }));
     }
 }

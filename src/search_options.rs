@@ -6,6 +6,7 @@ use std::str::FromStr;
 pub struct SearchOptions {
     pub board: Board,
 
+    pub move_time: usize,
     pub white_time: usize,
     pub white_increment: usize,
     pub black_time: usize,
@@ -21,6 +22,7 @@ impl SearchOptions {
         SearchOptions {
             board: Board::default(),
 
+            move_time: 0,
             white_time: 0,
             white_increment: 0,
             black_time: 0,
@@ -87,11 +89,16 @@ impl SearchOptions {
             self.depth = 2.;
         }
 
+        let move_time_index = args.iter().position(|r| r == "movetime");
         let white_time_index = args.iter().position(|r| r == "wtime");
         let white_increment_index = args.iter().position(|r| r == "winc");
         let black_time_index = args.iter().position(|r| r == "btime");
         let black_increment_index = args.iter().position(|r| r == "binc");
         let depth_index = args.iter().position(|r| r == "depth");
+
+        if move_time_index.is_some() {
+            self.move_time = args[move_time_index.unwrap() + 1].parse().unwrap();
+        }
 
         if white_time_index.is_some() {
             self.white_time = args[white_time_index.unwrap() + 1].parse().unwrap();
@@ -124,7 +131,19 @@ impl SearchOptions {
         }
     }
 
+    pub fn has_time_options(&self) -> bool {
+        let mut has_time_options = false;
+        for option in [self.move_time, self.white_time, self.white_increment,
+                             self.black_time, self.black_increment] {
+            if option != 0 {
+                has_time_options = true;
+            }
+        }
+        return has_time_options;
+    }
+
     fn reset_temporary_parameters(&mut self) {
+        self.move_time = 0;
         self.white_time = 0;
         self.white_increment = 0;
         self.black_time = 0;
