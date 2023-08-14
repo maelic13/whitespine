@@ -33,10 +33,7 @@ impl Engine {
             }
 
             self.initialize_heuristic(&command.search_options);
-            let result = self.search(command.search_options.board, command.search_options.depth);
-            if result.is_err() {
-                break;
-            }
+            self.search(command.search_options.board, command.search_options.depth);
         }
     }
 
@@ -50,8 +47,8 @@ impl Engine {
         command.stop || command.quit
     }
 
-    fn search(&mut self, board: Board, max_depth: f64) -> Result<(), &'static str> {
-        // start with random move choice, to be used in case of timeout before first depth is reached
+    fn search(&mut self, board: Board, max_depth: f64) {
+        /* start with random move choice, to be used in case of timeout before first depth is reached */
         let move_gen = MoveGen::new_legal(&board);
         let possible_moves: Vec<_> = move_gen.collect();
         let mut moves: Vec<ChessMove> = vec![possible_moves
@@ -76,9 +73,8 @@ impl Engine {
                     nodes_searched += nodes;
                     moves = pv;
                 }
-                Err(message) => {
-                    println!("bestmove {}", &moves[0].to_string());
-                    return Err(message);
+                Err(_) => {
+                    break;
                 }
             }
 
@@ -90,7 +86,7 @@ impl Engine {
             println!(
                 "info depth {} score cp {} nodes {} nps {} time {} pv {}",
                 depth,
-                evaluation as usize,
+                evaluation as isize,
                 nodes_searched,
                 (1_000_000. * nodes_searched as f64 / (stop_watch.elapsed().as_micros()) as f64) as usize,
                 stop_watch.elapsed().as_millis(),
@@ -99,7 +95,6 @@ impl Engine {
         }
 
         println!("bestmove {}", &moves[0].to_string());
-        return Ok(());
     }
 
     fn negamax(&self, game: &Game, depth: f64, mut alpha: f64, beta: f64
