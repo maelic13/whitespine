@@ -1,4 +1,4 @@
-use chess::{Board, BoardStatus, Color, Game, GameResult, Piece};
+use chess::{Board, BoardStatus, Game, GameResult, Piece};
 use std::path::PathBuf;
 
 use crate::piece_value::PieceValue;
@@ -25,7 +25,7 @@ impl Heuristic {
         }
     }
 
-    pub fn evaluate(self, game: Game) -> f64 {
+    pub fn evaluate(&self, game: &Game) -> f64 {
         // Evaluate board and return value in centi-pawns.
         if game.current_position().status() != BoardStatus::Ongoing {
             if game.result().unwrap() == GameResult::WhiteCheckmates
@@ -42,7 +42,7 @@ impl Heuristic {
 
         // TODO: syzygy tablebase evaluation
 
-        return Heuristic::evaluate_internal(game.current_position());
+        return Heuristic::evaluate_internal(&game.current_position());
     }
 
     fn _pawn_advantage_to_win_probability(pawn_advantage: f64) -> f64 {
@@ -60,65 +60,57 @@ impl Heuristic {
         return 4. * (win_probability / (1. - win_probability)).log10();
     }
 
-    fn evaluate_internal(board: Board) -> f64 {
+    fn evaluate_internal(board: &Board) -> f64 {
         let pawns = board.pieces(Piece::Pawn);
         let knights = board.pieces(Piece::Knight);
         let bishops = board.pieces(Piece::Bishop);
         let rooks = board.pieces(Piece::Rook);
         let queens = board.pieces(Piece::Queen);
 
-        let mut white_value: f64 = 0.;
-        let mut black_value: f64 = 0.;
+        let mut player_value: f64 = 0.;
+        let mut opponent_value: f64 = 0.;
         let piece_value = PieceValue::default();
 
         for square in pawns.into_iter() {
-            let color = board.color_on(square).unwrap();
-            if color == Color::White {
-                white_value += piece_value.pawn_value;
+            if board.color_on(square).unwrap() == board.side_to_move() {
+                player_value += piece_value.pawn_value;
             } else {
-                black_value += piece_value.pawn_value;
+                opponent_value += piece_value.pawn_value;
             }
         }
 
         for square in knights.into_iter() {
-            let color = board.color_on(square).unwrap();
-            if color == Color::White {
-                white_value += piece_value.knight_value;
+            if board.color_on(square).unwrap() == board.side_to_move() {
+                player_value += piece_value.knight_value;
             } else {
-                black_value += piece_value.knight_value;
+                opponent_value += piece_value.knight_value;
             }
         }
 
         for square in bishops.into_iter() {
-            let color = board.color_on(square).unwrap();
-            if color == Color::White {
-                white_value += piece_value.bishop_value;
+            if board.color_on(square).unwrap() == board.side_to_move() {
+                player_value += piece_value.bishop_value;
             } else {
-                black_value += piece_value.bishop_value;
+                opponent_value += piece_value.bishop_value;
             }
         }
 
         for square in rooks.into_iter() {
-            let color = board.color_on(square).unwrap();
-            if color == Color::White {
-                white_value += piece_value.rook_value;
+            if board.color_on(square).unwrap() == board.side_to_move() {
+                player_value += piece_value.rook_value;
             } else {
-                black_value += piece_value.rook_value;
+                opponent_value += piece_value.rook_value;
             }
         }
 
         for square in queens.into_iter() {
-            let color = board.color_on(square).unwrap();
-            if color == Color::White {
-                white_value += piece_value.queen_value;
+            if board.color_on(square).unwrap() == board.side_to_move() {
+                player_value += piece_value.queen_value;
             } else {
-                black_value += piece_value.queen_value;
+                opponent_value += piece_value.queen_value;
             }
         }
-
-        if board.side_to_move() == Color::White {
-            return white_value - black_value;
-        }
-        return black_value - white_value;
+        
+        return player_value - opponent_value;
     }
 }
