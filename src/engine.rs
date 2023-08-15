@@ -42,7 +42,9 @@ impl Engine {
 
             self.initialize_heuristic(&command.search_options);
             self.start_timer(&command.search_options);
-            self.search(command.search_options.board, command.search_options.depth);
+            let max_depth = [command.search_options.depth, command.search_options.max_depth]
+            .iter().fold(f64::INFINITY, |a, &b| a.min(b));
+            self.search(command.search_options.board, max_depth);
         }
     }
 

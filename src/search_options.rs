@@ -14,6 +14,7 @@ pub struct SearchOptions {
     pub depth: f64,
 
     pub fifty_moves_rule: bool,
+    pub max_depth: f64,
     pub syzygy_path: Option<PathBuf>,
 }
 
@@ -30,12 +31,14 @@ impl SearchOptions {
             depth: f64::INFINITY,
 
             fifty_moves_rule: true,
+            max_depth: f64::INFINITY,
             syzygy_path: None,
         }
     }
 
     pub fn get_uci_options() -> Vec<String> {
         Vec::from([
+            String::from("option name MaxDepth type spin default -1 min -1 max 99"),
             String::from("option name Syzygy50MoveRule type check default true"),
             String::from("option name SyzygyPath type string default <empty>"),
         ])
@@ -127,6 +130,7 @@ impl SearchOptions {
                 self.syzygy_path = if path.exists() { Some(path) } else { None };
             }
             "syzygy50moverule" => self.fifty_moves_rule = value == "true",
+            "maxdepth" => self.max_depth = value.parse::<f64>().unwrap(),
             _ => {}
         }
     }
