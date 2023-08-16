@@ -110,7 +110,7 @@ impl Engine {
 
         let mut nodes_searched: usize = 1;
 
-        if game.current_position().status() != BoardStatus::Ongoing {
+        if game.current_position().status() != BoardStatus::Ongoing || game.can_declare_draw() {
             return Ok((self.heuristic.evaluate(game), vec![], nodes_searched));
         }
         if depth == 0. {

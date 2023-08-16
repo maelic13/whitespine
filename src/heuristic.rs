@@ -164,14 +164,13 @@ impl Heuristic {
             }
         }
 
-        let no_queens = queens.into_iter().collect::<Vec<Square>>().is_empty();
         for square in kings.into_iter() {
             if board.color_on(square).unwrap() == board.side_to_move() {
                 player_value += self.king_bonus(
-                    square, board.king_square(!board.side_to_move()), no_queens)
+                    square, board.king_square(!board.side_to_move()), queens.count() == 0)
             } else {
                 opponent_value += self.king_bonus(
-                    square, board.king_square(board.side_to_move()), no_queens)
+                    square, board.king_square(board.side_to_move()), queens.count() == 0)
             }
         }
         
@@ -261,10 +260,10 @@ impl Heuristic {
         return q_bonus;
     }
 
-    fn king_bonus(&self, king: Square, opponent_king: Square, no_queen: bool) -> f64 {
+    fn king_bonus(&self, king: Square, opponent_king: Square, no_queens: bool) -> f64 {
         /* Evaluation bonus for positions of king on board. */
         let king_center_weight: f64;
-        if no_queen {
+        if no_queens {
             king_center_weight = self.king_center_weight;
         }
         else {
