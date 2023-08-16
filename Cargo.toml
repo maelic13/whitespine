@@ -8,7 +8,5 @@ edition = "2021"
 
 [dependencies]
 chess = "3.2.0"
-chrono = "0.4.26"
 rand = "0.8.5"
 stopwatch = "0.0.7"
-timer = "0.2.0"

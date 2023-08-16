@@ -1,10 +1,8 @@
-use std::sync::mpsc::{channel, Receiver};
+use std::sync::mpsc::Receiver;
 
 use chess::{Board, BoardStatus, ChessMove, Color, Game, MoveGen, Piece, Square};
-use chrono::Duration;
 use rand::seq::SliceRandom;
 use stopwatch::Stopwatch;
-use timer::{Guard, Timer};
 
 use crate::engine_command::EngineCommand;
 use crate::heuristic::Heuristic;
@@ -14,9 +12,8 @@ use crate::search_options::SearchOptions;
 pub struct Engine {
     heuristic: Heuristic,
     receiver: Receiver<EngineCommand>,
-    timer: Timer,
-    timer_guard: Option<Guard>,
-    timer_receiver: Option<Receiver<bool>>,
+    timer: Stopwatch,
+    time_for_move: f64,
 }
 
 impl Engine {
@@ -24,9 +21,8 @@ impl Engine {
         Engine {
             heuristic: Heuristic::default(),
             receiver,
-            timer: Timer::new(),
-            timer_guard: None,
-            timer_receiver: None,
+            timer: Stopwatch::new(),
+            time_for_move: f64::INFINITY,
         }
     }
 
@@ -42,9 +38,7 @@ impl Engine {
 
             self.initialize_heuristic(&command.search_options);
             self.start_timer(&command.search_options);
-            let max_depth = [command.search_options.depth, command.search_options.max_depth]
-            .iter().fold(f64::INFINITY, |a, &b| a.min(b));
-            self.search(command.search_options.board, max_depth);
+            self.search(command.search_options.board, command.search_options.search_depth());
         }
     }
 
@@ -55,13 +49,7 @@ impl Engine {
 
     fn check_stop(&self) -> bool {
         let command = self.receiver.try_recv().unwrap_or(EngineCommand::default());
-        let timeout;
-        if self.timer_receiver.is_some() {
-            timeout = self.timer_receiver.as_ref().unwrap().try_recv().unwrap_or(false);
-        } else {
-            timeout = false;
-        }
-        return command.stop || command.quit || timeout;
+        return command.stop || command.quit || self.timer.elapsed_ms() as f64 > self.time_for_move;
     }
 
     fn search(&mut self, board: Board, max_depth: f64) {
@@ -256,36 +244,18 @@ impl Engine {
     }
 
     fn start_timer(&mut self, search_options: &SearchOptions) {
-        /* Start timer which will send timeout message. */
-        if !search_options.has_time_options() {
-            // do not start timer
-            return;
-        }
-
-        let mut time_for_move: Option<f64> = None;
-        let time_flex: f64 = 10.;
+        /* Start timer to check elapsed time and stop it over limit. */
+        self.timer.restart();
+        self.time_for_move = f64::INFINITY;
 
         if search_options.move_time != 0 {
-            time_for_move = Some(search_options.move_time as f64 - time_flex);
+            self.time_for_move = search_options.move_time as f64 - search_options.move_overhead;
         }
         if search_options.board.side_to_move() == Color::White && search_options.white_time != 0 {
-            time_for_move = Some(0.2 * search_options.white_time as f64 - time_flex)
+            self.time_for_move = 0.2 * search_options.white_time as f64 - search_options.move_overhead;
         }
         if search_options.board.side_to_move() == Color::Black && search_options.black_time != 0 {
-            time_for_move = Some(0.2 * search_options.black_time as f64 - time_flex)
+            self.time_for_move = 0.2 * search_options.black_time as f64 - search_options.move_overhead;
         }
-
-        if time_for_move.is_none() {
-            // wrong options, do not start timer
-            return
-        }
-
-        let (tx, rx) = channel();
-        self.timer_receiver = Some(rx);
-
-        self.timer_guard = Some(self.timer.schedule_with_delay(
-            Duration::milliseconds(time_for_move.unwrap() as i64), move || {
-                tx.send(true).expect("Timeout message could not be sent.");
-        }));
     }
 }
