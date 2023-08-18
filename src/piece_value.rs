@@ -6,7 +6,7 @@ pub struct PieceValue {
     pub bishop_value: f64, // [cp]
     pub rook_value: f64,   // [cp]
     pub queen_value: f64,  // [cp]
-    pub king_value: f64,  // [cp]
+    pub king_value: f64,   // [cp]
 }
 
 impl PieceValue {
@@ -20,7 +20,7 @@ impl PieceValue {
             king_value: f64::INFINITY,
         };
     }
-    
+
     pub fn get_piece_value(&self, piece: Piece) -> f64 {
         return match piece {
             Piece::Pawn => self.pawn_value,
@@ -29,6 +29,6 @@ impl PieceValue {
             Piece::Rook => self.rook_value,
             Piece::Queen => self.queen_value,
             Piece::King => self.king_value,
-        }
+        };
     }
 }

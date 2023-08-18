@@ -132,7 +132,9 @@ impl SearchOptions {
             return;
         }
 
-        let option_name: &str = &args[name_index.unwrap() + 1..value_index.unwrap()].join(" ").to_lowercase();
+        let option_name: &str = &args[name_index.unwrap() + 1..value_index.unwrap()]
+            .join(" ")
+            .to_lowercase();
         let value = &args[value_index.unwrap() + 1..].join(" ").to_lowercase();
 
         match option_name {
@@ -143,19 +145,21 @@ impl SearchOptions {
                 } else {
                     self.max_depth = depth;
                 }
-            },
+            }
             "move overhead" => self.move_overhead = value.parse::<f64>().unwrap(),
             "syzygy50moverule" => self.fifty_moves_rule = value == "true",
             "syzygypath" => {
                 let path = PathBuf::from(value);
                 self.syzygy_path = if path.exists() { Some(path) } else { None };
-            },
+            }
             _ => {}
         }
     }
 
     pub fn search_depth(&self) -> f64 {
-        return [self.max_depth, self.depth].iter().fold(f64::INFINITY, |a, &b| a.min(b));
+        return [self.max_depth, self.depth]
+            .iter()
+            .fold(f64::INFINITY, |a, &b| a.min(b));
     }
 
     fn reset_temporary_parameters(&mut self) {

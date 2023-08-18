@@ -38,7 +38,10 @@ impl Engine {
 
             self.initialize_heuristic(&command.search_options);
             self.start_timer(&command.search_options);
-            self.search(command.search_options.board, command.search_options.search_depth());
+            self.search(
+                command.search_options.board,
+                command.search_options.search_depth(),
+            );
         }
     }
 
@@ -93,7 +96,8 @@ impl Engine {
                 depth,
                 evaluation as isize,
                 nodes_searched,
-                (1_000_000. * nodes_searched as f64 / (stop_watch.elapsed().as_micros()) as f64) as usize,
+                (1_000_000. * nodes_searched as f64 / (stop_watch.elapsed().as_micros()) as f64)
+                    as usize,
                 stop_watch.elapsed().as_millis(),
                 string_moves.join(" ")
             )
@@ -102,7 +106,12 @@ impl Engine {
         println!("bestmove {}", &moves[0].to_string());
     }
 
-    fn negamax(&self, game: &Game, depth: f64, mut alpha: f64, beta: f64
+    fn negamax(
+        &self,
+        game: &Game,
+        depth: f64,
+        mut alpha: f64,
+        beta: f64,
     ) -> Result<(f64, Vec<ChessMove>, usize), &'static str> {
         if self.check_stop() {
             return Err("Calculation stopped.");
@@ -123,7 +132,7 @@ impl Engine {
                 }
                 Err(message) => return Err(message),
             }
-            return Ok((evaluation, vec![], nodes_searched))
+            return Ok((evaluation, vec![], nodes_searched));
         }
 
         let move_gen = MoveGen::new_legal(&game.current_position());
@@ -160,39 +169,56 @@ impl Engine {
 
         Ok((alpha, best_moves, nodes_searched))
     }
-    
-    fn quiescence(&self, game: &Game, mut alpha: f64, beta: f64) -> Result<(f64, usize), &'static str> {
+
+    fn quiescence(
+        &self,
+        game: &Game,
+        mut alpha: f64,
+        beta: f64,
+    ) -> Result<(f64, usize), &'static str> {
         if self.check_stop() {
             return Err("Calculation stopped.");
         }
-        
+
         let evaluation = self.heuristic.evaluate(game);
-        
-        if evaluation >= beta { 
+
+        if evaluation >= beta {
             return Ok((beta, 0));
         }
-        
-        let use_delta_pruning = game.current_position().combined().collect::<Vec<Square>>().len() == 8;
+
+        let use_delta_pruning = game
+            .current_position()
+            .combined()
+            .collect::<Vec<Square>>()
+            .len()
+            == 8;
         if use_delta_pruning {
             if evaluation < alpha - 1000. {
                 return Ok((alpha, 0));
             }
         }
-        
-        if evaluation > alpha { 
+
+        if evaluation > alpha {
             alpha = evaluation;
         }
 
         let mut nodes_searched: usize = 0;
         let piece_value = PieceValue::default();
-        for (chess_move, is_capture, is_en_passant) in Engine::get_captures_and_checks(&game.current_position()) {
+        for (chess_move, is_capture, is_en_passant) in
+            Engine::get_captures_and_checks(&game.current_position())
+        {
             if use_delta_pruning && is_en_passant && (evaluation + piece_value.pawn_value < alpha) {
-                continue 
-            }
-            else if use_delta_pruning && is_capture 
-                && (piece_value.get_piece_value(game.current_position().piece_on(chess_move.get_dest()).unwrap()) 
-                + piece_value.pawn_value < alpha) {
-                continue
+                continue;
+            } else if use_delta_pruning
+                && is_capture
+                && (piece_value.get_piece_value(
+                    game.current_position()
+                        .piece_on(chess_move.get_dest())
+                        .unwrap(),
+                ) + piece_value.pawn_value
+                    < alpha)
+            {
+                continue;
             }
 
             let mut current_game = game.clone();
@@ -217,29 +243,29 @@ impl Engine {
             }
         }
 
-        return Ok((alpha, nodes_searched))
+        return Ok((alpha, nodes_searched));
     }
 
     fn get_captures_and_checks(board: &Board) -> Vec<(ChessMove, bool, bool)> {
         let mut captures_and_checks: Vec<(ChessMove, bool, bool)> = vec![];
         let move_gen = MoveGen::new_legal(board);
-        
+
         for chess_move in move_gen {
             let board_after_move = board.make_move_new(chess_move);
-            
+
             let captured_piece = board.piece_on(chess_move.get_dest()) != None;
             let is_check = board_after_move.checkers().collect::<Vec<Square>>().len() != 0;
-            
-            let en_passant_capture = 
-                board.piece_on(chess_move.get_source()).unwrap() == Piece::Pawn 
-                    && (chess_move.get_source().get_rank() != chess_move.get_dest().get_rank())
-                    && (chess_move.get_source().get_file() != chess_move.get_dest().get_file());
-            
+
+            let en_passant_capture = board.piece_on(chess_move.get_source()).unwrap()
+                == Piece::Pawn
+                && (chess_move.get_source().get_rank() != chess_move.get_dest().get_rank())
+                && (chess_move.get_source().get_file() != chess_move.get_dest().get_file());
+
             if captured_piece || en_passant_capture || is_check {
                 captures_and_checks.push((chess_move, captured_piece, en_passant_capture));
             }
         }
-        
+
         return captures_and_checks;
     }
 
@@ -252,10 +278,12 @@ impl Engine {
             self.time_for_move = search_options.move_time as f64 - search_options.move_overhead;
         }
         if search_options.board.side_to_move() == Color::White && search_options.white_time != 0 {
-            self.time_for_move = 0.2 * search_options.white_time as f64 - search_options.move_overhead;
+            self.time_for_move =
+                0.2 * search_options.white_time as f64 - search_options.move_overhead;
         }
         if search_options.board.side_to_move() == Color::Black && search_options.black_time != 0 {
-            self.time_for_move = 0.2 * search_options.black_time as f64 - search_options.move_overhead;
+            self.time_for_move =
+                0.2 * search_options.black_time as f64 - search_options.move_overhead;
         }
     }
 }

@@ -1,4 +1,4 @@
-use chess::{Board, BoardStatus, Color, Game, GameResult, Piece, Square};
+use chess::{Board, Color, Game, GameResult, Piece, Square};
 use std::path::PathBuf;
 
 use crate::piece_value::PieceValue;
@@ -10,7 +10,7 @@ pub struct Heuristic {
 
     draw_value: f64,
     loss_value: f64,
-    _win_value: f64,
+    win_value: f64,
 
     pawn_rank_weight: f64,
     pawn_file_weight: f64,
@@ -39,9 +39,9 @@ impl Heuristic {
             fifty_moves_rule: true,
             syzygy_path: None,
 
-            draw_value: Heuristic::win_probability_to_pawn_advantage(0.5) * 100., // [cp]
-            loss_value: Heuristic::win_probability_to_pawn_advantage(0.) * 100.,  // [cp]
-            _win_value: Heuristic::win_probability_to_pawn_advantage(1.) * 100.,  // [cp]
+            draw_value: 0.,       // [cp]
+            loss_value: -120_00., // [cp]
+            win_value: 120_00.,   // [cp]
 
             pawn_rank_weight: 7.,
             pawn_file_weight: 5.,
@@ -67,17 +67,32 @@ impl Heuristic {
 
     pub fn evaluate(&self, game: &Game) -> f64 {
         /* Evaluate board and return value in centi-pawns. */
-        if game.current_position().status() != BoardStatus::Ongoing {
-            if game.result().unwrap() == GameResult::WhiteCheckmates
-                || game.result().unwrap() == GameResult::BlackCheckmates
-            {
-                return self.loss_value;
-            }
-            return self.draw_value;
+        if game.can_declare_draw() {
+            return 0.;
         }
 
-        if game.can_declare_draw() {
-            return self.draw_value;
+        let result = game.result();
+        let color = game.side_to_move();
+        if result.is_some() {
+            return match result.unwrap() {
+                GameResult::WhiteCheckmates | GameResult::BlackResigns => {
+                    if color == Color::White {
+                        self.win_value
+                    } else {
+                        self.loss_value
+                    }
+                }
+                GameResult::WhiteResigns | GameResult::BlackCheckmates => {
+                    if color == Color::Black {
+                        self.win_value
+                    } else {
+                        self.loss_value
+                    }
+                }
+                GameResult::Stalemate | GameResult::DrawAccepted | GameResult::DrawDeclared => {
+                    self.draw_value
+                }
+            };
         }
 
         // TODO: syzygy tablebase evaluation
@@ -90,7 +105,7 @@ impl Heuristic {
         return 1. / (1. + (10_f64).powf(-pawn_advantage / 4.));
     }
 
-    fn win_probability_to_pawn_advantage(mut win_probability: f64) -> f64 {
+    fn _win_probability_to_pawn_advantage(mut win_probability: f64) -> f64 {
         /* Calculate pawn advantage given winning probability. */
         if win_probability <= 0. {
             win_probability = 1e-9
@@ -116,11 +131,17 @@ impl Heuristic {
             if board.color_on(square).unwrap() == board.side_to_move() {
                 player_value += piece_value.pawn_value;
                 player_value += self.pawn_bonus(
-                    square, board.side_to_move(), board.king_square(!board.side_to_move()));
+                    square,
+                    board.side_to_move(),
+                    board.king_square(!board.side_to_move()),
+                );
             } else {
                 opponent_value += piece_value.pawn_value;
                 opponent_value += self.pawn_bonus(
-                    square, !board.side_to_move(), board.king_square(board.side_to_move()));
+                    square,
+                    !board.side_to_move(),
+                    board.king_square(board.side_to_move()),
+                );
             }
         }
 
@@ -167,50 +188,55 @@ impl Heuristic {
         for square in kings.into_iter() {
             if board.color_on(square).unwrap() == board.side_to_move() {
                 player_value += self.king_bonus(
-                    square, board.king_square(!board.side_to_move()), queens.count() == 0)
+                    square,
+                    board.king_square(!board.side_to_move()),
+                    queens.count() == 0,
+                )
             } else {
                 opponent_value += self.king_bonus(
-                    square, board.king_square(board.side_to_move()), queens.count() == 0)
+                    square,
+                    board.king_square(board.side_to_move()),
+                    queens.count() == 0,
+                )
             }
         }
-        
+
         return player_value - opponent_value;
     }
-    
+
     fn pawn_bonus(&self, pawn: Square, color: Color, opponent_king: Square) -> f64 {
         /* Evaluation bonus for positions of pawns on board. */
-        
+
         // rank bonus -> the further forward the pawn, the more of a bonus
-        let mut p_bonus = 
-            (pawn.get_rank().to_index() as f64 - color.to_second_rank().to_index() as f64).abs() 
+        let mut p_bonus =
+            (pawn.get_rank().to_index() as f64 - color.to_second_rank().to_index() as f64).abs()
                 * self.pawn_rank_weight;
-        
+
         // file penalty -> central files take none, the closer to rim the less pawn's value
         if pawn.get_file().to_index() < 3 {
             p_bonus -= (3. - pawn.get_file().to_index() as f64) * self.pawn_file_weight;
-        }
-        else if pawn.get_file().to_index() > 4 {
+        } else if pawn.get_file().to_index() > 4 {
             p_bonus -= (pawn.get_file().to_index() as f64 - 4.) * self.pawn_file_weight;
         }
-        
+
         // occupying center bonus
         p_bonus += Heuristic::occupying_center_bonus(pawn, self.pawn_center_weight);
         // distance from king bonus
-        p_bonus += Heuristic::distance_from_king_bonus(
-            pawn, opponent_king, self.pawn_distance_weight);
-        
+        p_bonus +=
+            Heuristic::distance_from_king_bonus(pawn, opponent_king, self.pawn_distance_weight);
+
         return p_bonus;
     }
-    
+
     fn knight_bonus(&self, knight: Square, opponent_king: Square) -> f64 {
         /* Evaluation bonus for positions knights on board. */
-        
+
         // occupying center bonus
         let mut k_bonus = Heuristic::occupying_center_bonus(knight, self.knight_center_weight);
         // distance from king bonus
-        k_bonus += Heuristic::distance_from_king_bonus(
-            knight, opponent_king, self.knight_distance_weight);
-        
+        k_bonus +=
+            Heuristic::distance_from_king_bonus(knight, opponent_king, self.knight_distance_weight);
+
         return k_bonus;
     }
 
@@ -220,8 +246,8 @@ impl Heuristic {
         // occupying center bonus
         let mut b_bonus = Heuristic::occupying_center_bonus(bishop, self.bishop_center_weight);
         // distance from king bonus
-        b_bonus += Heuristic::distance_from_king_bonus(
-            bishop, opponent_king, self.bishop_distance_weight);
+        b_bonus +=
+            Heuristic::distance_from_king_bonus(bishop, opponent_king, self.bishop_distance_weight);
 
         return b_bonus;
     }
@@ -229,22 +255,20 @@ impl Heuristic {
     fn rook_bonus(&self, rook: Square, opponent_king: Square) -> f64 {
         /* Evaluation bonus for positions of rooks on board. */
         let mut r_bonus = 0.;
-        
+
         // occupying center files bonus
         if (3usize..5usize).contains(&rook.get_file().to_index()) {
             r_bonus += 3. * self.rook_center_weight;
-        }
-        else if (2usize..6usize).contains(&rook.get_file().to_index()) {
+        } else if (2usize..6usize).contains(&rook.get_file().to_index()) {
             r_bonus += 2. * self.rook_center_weight;
-        }
-        else if (1usize..7usize).contains(&rook.get_file().to_index()) {
+        } else if (1usize..7usize).contains(&rook.get_file().to_index()) {
             r_bonus += self.rook_center_weight;
         }
-        
+
         // distance from king bonus
-        r_bonus += Heuristic::distance_from_king_bonus(
-            rook, opponent_king, self.rook_distance_weight);
-        
+        r_bonus +=
+            Heuristic::distance_from_king_bonus(rook, opponent_king, self.rook_distance_weight);
+
         return r_bonus;
     }
 
@@ -254,8 +278,8 @@ impl Heuristic {
         // occupying center bonus
         let mut q_bonus = Heuristic::occupying_center_bonus(queen, self.queen_center_weight);
         // distance from king bonus
-        q_bonus += Heuristic::distance_from_king_bonus(
-            queen, opponent_king, self.queen_distance_weight);
+        q_bonus +=
+            Heuristic::distance_from_king_bonus(queen, opponent_king, self.queen_distance_weight);
 
         return q_bonus;
     }
@@ -265,43 +289,45 @@ impl Heuristic {
         let king_center_weight: f64;
         if no_queens {
             king_center_weight = self.king_center_weight;
-        }
-        else {
+        } else {
             king_center_weight = -self.knight_center_weight;
         }
-        
+
         // occupying center bonus
         let mut k_bonus = Heuristic::occupying_center_bonus(king, king_center_weight);
-        
+
         // distance from king bonus
-        k_bonus += Heuristic::distance_from_king_bonus(
-            king, opponent_king, self.king_distance_weight);
-        
+        k_bonus +=
+            Heuristic::distance_from_king_bonus(king, opponent_king, self.king_distance_weight);
+
         return k_bonus;
     }
-    
+
     fn occupying_center_bonus(piece: Square, bonus: f64) -> f64 {
         /* Bonus for occupying squares close to center. */
-        if (3usize..5usize).contains(&piece.get_rank().to_index()) 
-            && (3usize..5usize).contains(&piece.get_file().to_index()) {
+        if (3usize..5usize).contains(&piece.get_rank().to_index())
+            && (3usize..5usize).contains(&piece.get_file().to_index())
+        {
             return 3. * bonus;
         }
         if (2usize..6usize).contains(&piece.get_rank().to_index())
-            && (3usize..5usize).contains(&piece.get_file().to_index()) {
+            && (3usize..5usize).contains(&piece.get_file().to_index())
+        {
             return 2. * bonus;
         }
         if (1usize..7usize).contains(&piece.get_rank().to_index())
-            && (3usize..5usize).contains(&piece.get_file().to_index()) {
+            && (3usize..5usize).contains(&piece.get_file().to_index())
+        {
             return bonus;
         }
         return 0.;
     }
-    
+
     fn distance_from_king_bonus(piece: Square, king: Square, bonus: f64) -> f64 {
         /* Bonus for distance from opponent's king. */
-        let distance = 
-            (piece.get_rank().to_index() as f64 - king.get_rank().to_index() as f64).abs()
+        let distance = (piece.get_rank().to_index() as f64 - king.get_rank().to_index() as f64)
+            .abs()
             + (piece.get_file().to_index() as f64 - king.get_file().to_index() as f64).abs();
-        return 14. / distance * bonus - bonus
+        return 14. / distance * bonus - bonus;
     }
 }
