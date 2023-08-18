@@ -1,10 +1,10 @@
-use chess::{Board, ChessMove};
+use chess::{Board, ChessMove, Game};
 use std::path::PathBuf;
 use std::str::FromStr;
 
 #[derive(Debug, Clone)]
 pub struct SearchOptions {
-    pub board: Board,
+    pub chess_game: Game,
 
     pub move_time: usize,
     pub white_time: usize,
@@ -22,7 +22,7 @@ pub struct SearchOptions {
 impl SearchOptions {
     pub fn default() -> SearchOptions {
         SearchOptions {
-            board: Board::default(),
+            chess_game: Game::new(),
 
             move_time: 0,
             white_time: 0,
@@ -48,7 +48,7 @@ impl SearchOptions {
     }
 
     pub fn reset(&mut self) {
-        self.board = Board::default();
+        self.chess_game = Game::new();
         self.reset_temporary_parameters();
     }
 
@@ -74,12 +74,12 @@ impl SearchOptions {
             + 1;
         let played_moves = args[moves_start_index..].to_vec();
 
-        for mv in played_moves {
-            board = board
-                .make_move_new(ChessMove::from_str(mv.as_str()).expect("Invalid move string."));
+        let mut game = Game::new_with_board(board);
+        for chess_move in played_moves {
+            game.make_move(ChessMove::from_str(chess_move.as_str()).expect("Invalid move string."));
         }
 
-        self.board = board;
+        self.chess_game = game;
     }
 
     pub fn set_search_parameters(&mut self, args: &[String]) {

@@ -39,7 +39,7 @@ impl Engine {
             self.initialize_heuristic(&command.search_options);
             self.start_timer(&command.search_options);
             self.search(
-                command.search_options.board,
+                &command.search_options.chess_game,
                 command.search_options.search_depth(),
             );
         }
@@ -55,9 +55,9 @@ impl Engine {
         return command.stop || command.quit || self.timer.elapsed_ms() as f64 > self.time_for_move;
     }
 
-    fn search(&mut self, board: Board, max_depth: f64) {
+    fn search(&mut self, game: &Game, max_depth: f64) {
         // start with random move choice, to be used in case of timeout before first depth is reached
-        let move_gen = MoveGen::new_legal(&board);
+        let move_gen = MoveGen::new_legal(&game.current_position());
         let possible_moves: Vec<_> = move_gen.collect();
         let mut moves: Vec<ChessMove> = vec![possible_moves
             .choose(&mut rand::thread_rng())
@@ -68,7 +68,6 @@ impl Engine {
         stop_watch.start();
         let mut depth: f64 = 0.;
         let mut evaluation: f64;
-        let game = Game::new_with_board(board);
         let mut nodes_searched: usize = 0;
 
         while depth < max_depth {
@@ -119,7 +118,7 @@ impl Engine {
 
         let mut nodes_searched: usize = 1;
 
-        if game.current_position().status() != BoardStatus::Ongoing || game.can_declare_draw() {
+        if game.result().is_some() {
             return Ok((self.heuristic.evaluate(game), vec![], nodes_searched));
         }
         if depth == 0. {
@@ -144,6 +143,7 @@ impl Engine {
         for chess_move in move_gen {
             current_game = game.clone();
             current_game.make_move(chess_move);
+            current_game.declare_draw();
 
             let result = self.negamax(&current_game, depth - 1., -beta, -alpha);
             match result {
@@ -178,6 +178,10 @@ impl Engine {
     ) -> Result<(f64, usize), &'static str> {
         if self.check_stop() {
             return Err("Calculation stopped.");
+        }
+
+        if game.result().is_some() {
+            return Ok((self.heuristic.evaluate(game), 0));
         }
 
         let evaluation = self.heuristic.evaluate(game);
@@ -277,11 +281,11 @@ impl Engine {
         if search_options.move_time != 0 {
             self.time_for_move = search_options.move_time as f64 - search_options.move_overhead;
         }
-        if search_options.board.side_to_move() == Color::White && search_options.white_time != 0 {
+        if search_options.chess_game.side_to_move() == Color::White && search_options.white_time != 0 {
             self.time_for_move =
                 0.2 * search_options.white_time as f64 - search_options.move_overhead;
         }
-        if search_options.board.side_to_move() == Color::Black && search_options.black_time != 0 {
+        if search_options.chess_game.side_to_move() == Color::Black && search_options.black_time != 0 {
             self.time_for_move =
                 0.2 * search_options.black_time as f64 - search_options.move_overhead;
         }
