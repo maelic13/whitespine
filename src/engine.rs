@@ -1,6 +1,6 @@
 use std::sync::mpsc::Receiver;
 
-use chess::{Board, BoardStatus, ChessMove, Color, Game, MoveGen, Piece, Square};
+use chess::{Board, ChessMove, Color, Game, MoveGen, Piece, Square};
 use rand::seq::SliceRandom;
 use stopwatch::Stopwatch;
 
