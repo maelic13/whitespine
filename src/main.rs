@@ -1,15 +1,15 @@
+use std::sync::mpsc::channel;
+use std::thread;
+
+use crate::engine::Engine;
+use crate::uci_protocol::UciProtocol;
+
 mod engine;
 mod engine_command;
 mod heuristic;
 mod piece_value;
 mod search_options;
 mod uci_protocol;
-
-use std::sync::mpsc::channel;
-use std::thread;
-
-use crate::engine::Engine;
-use crate::uci_protocol::UciProtocol;
 
 fn main() {
     println!(

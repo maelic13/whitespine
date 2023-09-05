@@ -1,5 +1,6 @@
-use chess::{Board, Color, Game, GameResult, Piece, Square};
 use std::path::PathBuf;
+
+use chess::{Board, Color, Game, GameResult, Piece, Square};
 
 use crate::piece_value::PieceValue;
 

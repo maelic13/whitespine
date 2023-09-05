@@ -1,12 +1,12 @@
 use chess::Piece;
 
 pub struct PieceValue {
-    pub pawn_value: f64,   // [cp]
-    pub knight_value: f64, // [cp]
-    pub bishop_value: f64, // [cp]
-    pub rook_value: f64,   // [cp]
-    pub queen_value: f64,  // [cp]
-    pub king_value: f64,   // [cp]
+    pub pawn_value: f64,
+    pub knight_value: f64,
+    pub bishop_value: f64,
+    pub rook_value: f64,
+    pub queen_value: f64,
+    pub king_value: f64,
 }
 
 impl PieceValue {

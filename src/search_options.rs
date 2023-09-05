@@ -1,6 +1,7 @@
-use chess::{Board, ChessMove, Game};
 use std::path::PathBuf;
 use std::str::FromStr;
+
+use chess::{Board, ChessMove, Game};
 
 #[derive(Debug, Clone)]
 pub struct SearchOptions {

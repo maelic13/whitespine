@@ -209,18 +209,18 @@ impl Engine {
         let mut nodes_searched: usize = 0;
         let piece_value = PieceValue::default();
         for (chess_move, is_capture, is_en_passant) in
-            Engine::get_captures_and_checks(&game.current_position())
+        Engine::get_captures_and_checks(&game.current_position())
         {
             if use_delta_pruning && is_en_passant && (evaluation + piece_value.pawn_value < alpha) {
                 continue;
             } else if use_delta_pruning
                 && is_capture
                 && (piece_value.get_piece_value(
-                    game.current_position()
-                        .piece_on(chess_move.get_dest())
-                        .unwrap(),
-                ) + piece_value.pawn_value
-                    < alpha)
+                game.current_position()
+                    .piece_on(chess_move.get_dest())
+                    .unwrap(),
+            ) + piece_value.pawn_value
+                < alpha)
             {
                 continue;
             }
@@ -281,11 +281,15 @@ impl Engine {
         if search_options.move_time != 0 {
             self.time_for_move = search_options.move_time as f64 - search_options.move_overhead;
         }
-        if search_options.chess_game.side_to_move() == Color::White && search_options.white_time != 0 {
+        if search_options.chess_game.side_to_move() == Color::White
+            && search_options.white_time != 0
+        {
             self.time_for_move =
                 0.2 * search_options.white_time as f64 - search_options.move_overhead;
         }
-        if search_options.chess_game.side_to_move() == Color::Black && search_options.black_time != 0 {
+        if search_options.chess_game.side_to_move() == Color::Black
+            && search_options.black_time != 0
+        {
             self.time_for_move =
                 0.2 * search_options.black_time as f64 - search_options.move_overhead;
         }
