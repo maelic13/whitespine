@@ -209,18 +209,18 @@ impl Engine {
         let mut nodes_searched: usize = 0;
         let piece_value = PieceValue::default();
         for (chess_move, is_capture, is_en_passant) in
-        Engine::get_captures_and_checks(&game.current_position())
+            Engine::get_captures_and_checks(&game.current_position())
         {
             if use_delta_pruning && is_en_passant && (evaluation + piece_value.pawn_value < alpha) {
                 continue;
             } else if use_delta_pruning
                 && is_capture
                 && (piece_value.get_piece_value(
-                game.current_position()
-                    .piece_on(chess_move.get_dest())
-                    .unwrap(),
-            ) + piece_value.pawn_value
-                < alpha)
+                    game.current_position()
+                        .piece_on(chess_move.get_dest())
+                        .unwrap(),
+                ) + piece_value.pawn_value
+                    < alpha)
             {
                 continue;
             }

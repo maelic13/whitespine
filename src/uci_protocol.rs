@@ -2,6 +2,7 @@ use std::io;
 use std::sync::mpsc::Sender;
 
 use crate::engine_command::EngineCommand;
+use crate::infra::capitalize_first_letter;
 use crate::search_options::SearchOptions;
 
 pub struct UciProtocol {
@@ -32,11 +33,11 @@ impl UciProtocol {
 
             match command {
                 "uci" => self.uci(),
-                "isready" => self.isready(),
+                "isready" => self.is_ready(),
                 "go" => self.go(args),
                 "stop" => self.stop(),
-                "setoption" => self.setoption(args),
-                "ucinewgame" => self.ucinewgame(),
+                "setoption" => self.set_option(args),
+                "ucinewgame" => self.new_game(),
                 "position" => self.position(args),
                 "quit" => {
                     self.quit();
@@ -48,7 +49,11 @@ impl UciProtocol {
     }
 
     fn uci(&self) {
-        println!("id name {}", env!("CARGO_PKG_NAME"));
+        println!(
+            "id name {} {}",
+            capitalize_first_letter(env!("CARGO_PKG_NAME")),
+            env!("CARGO_PKG_VERSION")
+        );
         println!("id author {}", env!("CARGO_PKG_AUTHORS").replace(':', ", "));
         for option in SearchOptions::get_uci_options() {
             println!("{}", option);
@@ -56,7 +61,7 @@ impl UciProtocol {
         println!("uciok");
     }
 
-    fn isready(&self) {
+    fn is_ready(&self) {
         println!("readyok");
     }
 
@@ -79,11 +84,11 @@ impl UciProtocol {
             .expect("Stop command could not be sent.");
     }
 
-    fn setoption(&mut self, args: &[String]) {
+    fn set_option(&mut self, args: &[String]) {
         self.search_options.set_option(args);
     }
 
-    fn ucinewgame(&mut self) {
+    fn new_game(&mut self) {
         self.search_options.reset();
     }
 

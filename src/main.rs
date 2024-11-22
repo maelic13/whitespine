@@ -2,11 +2,13 @@ use std::sync::mpsc::channel;
 use std::thread;
 
 use crate::engine::Engine;
+use crate::infra::capitalize_first_letter;
 use crate::uci_protocol::UciProtocol;
 
 mod engine;
 mod engine_command;
 mod heuristic;
+mod infra;
 mod piece_value;
 mod search_options;
 mod uci_protocol;
@@ -14,7 +16,7 @@ mod uci_protocol;
 fn main() {
     println!(
         "{} {} by {}",
-        env!("CARGO_PKG_NAME"),
+        capitalize_first_letter(env!("CARGO_PKG_NAME")),
         env!("CARGO_PKG_VERSION"),
         env!("CARGO_PKG_AUTHORS").replace(':', ", ")
     );
