@@ -1,6 +1,6 @@
 [package]
 name = "whitespine"
-authors = ["Miloslav Macůrek"]
+authors = ["Miloslav Macurek"]
 version = "1.1.2"
 edition = "2021"
 
