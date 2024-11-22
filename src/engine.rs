@@ -1,8 +1,7 @@
 use std::sync::mpsc::Receiver;
+use std::time::Instant;
 
 use chess::{Board, ChessMove, Color, Game, MoveGen, Piece, Square};
-use rand::seq::SliceRandom;
-use stopwatch::Stopwatch;
 
 use crate::engine_command::EngineCommand;
 use crate::heuristic::Heuristic;
@@ -12,7 +11,7 @@ use crate::search_options::SearchOptions;
 pub struct Engine {
     heuristic: Heuristic,
     receiver: Receiver<EngineCommand>,
-    timer: Stopwatch,
+    timer: Option<Instant>,
     time_for_move: f64,
 }
 
@@ -21,7 +20,7 @@ impl Engine {
         Engine {
             heuristic: Heuristic::default(),
             receiver,
-            timer: Stopwatch::new(),
+            timer: None,
             time_for_move: f64::INFINITY,
         }
     }
@@ -52,20 +51,22 @@ impl Engine {
 
     fn check_stop(&self) -> bool {
         let command = self.receiver.try_recv().unwrap_or(EngineCommand::default());
-        return command.stop || command.quit || self.timer.elapsed_ms() as f64 > self.time_for_move;
+        return command.stop
+            || command.quit
+            || self.timer.unwrap().elapsed().as_millis() as f64 > self.time_for_move;
     }
 
     fn search(&mut self, game: &Game, max_depth: f64) {
+        let start = Instant::now();
+
         // start with random move choice, to be used in case of timeout before first depth is reached
         let move_gen = MoveGen::new_legal(&game.current_position());
         let possible_moves: Vec<_> = move_gen.collect();
         let mut moves: Vec<ChessMove> = vec![possible_moves
-            .choose(&mut rand::thread_rng())
+            .get((start.elapsed().as_nanos() / 100) as usize % possible_moves.len())
             .unwrap()
             .to_owned()];
 
-        let mut stop_watch = Stopwatch::new();
-        stop_watch.start();
         let mut depth: f64 = 0.;
         let mut evaluation: f64;
         let mut nodes_searched: usize = 0;
@@ -95,9 +96,9 @@ impl Engine {
                 depth,
                 evaluation as isize,
                 nodes_searched,
-                (1_000_000. * nodes_searched as f64 / (stop_watch.elapsed().as_micros()) as f64)
+                (1_000_000. * nodes_searched as f64 / start.elapsed().as_micros() as f64)
                     as usize,
-                stop_watch.elapsed().as_millis(),
+                start.elapsed().as_millis(),
                 string_moves.join(" ")
             )
         }
@@ -275,7 +276,7 @@ impl Engine {
 
     fn start_timer(&mut self, search_options: &SearchOptions) {
         /* Start timer to check elapsed time and stop it over limit. */
-        self.timer.restart();
+        self.timer = Some(Instant::now());
         self.time_for_move = f64::INFINITY;
 
         if search_options.move_time != 0 {
