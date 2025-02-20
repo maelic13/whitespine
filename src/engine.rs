@@ -62,10 +62,12 @@ impl Engine {
         // start with random move choice, to be used in case of timeout before first depth is reached
         let move_gen = MoveGen::new_legal(&game.current_position());
         let possible_moves: Vec<_> = move_gen.collect();
-        let mut moves: Vec<ChessMove> = vec![possible_moves
-            .get((start.elapsed().as_nanos() / 100) as usize % possible_moves.len())
-            .unwrap()
-            .to_owned()];
+        let mut moves: Vec<ChessMove> = vec![
+            possible_moves
+                .get((start.elapsed().as_nanos() / 100) as usize % possible_moves.len())
+                .unwrap()
+                .to_owned(),
+        ];
 
         let mut depth: f64 = 0.;
         let mut evaluation: f64;
@@ -96,8 +98,7 @@ impl Engine {
                 depth,
                 evaluation as isize,
                 nodes_searched,
-                (1_000_000. * nodes_searched as f64 / start.elapsed().as_micros() as f64)
-                    as usize,
+                (1_000_000. * nodes_searched as f64 / start.elapsed().as_micros() as f64) as usize,
                 start.elapsed().as_millis(),
                 string_moves.join(" ")
             )
