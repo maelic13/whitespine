@@ -4,6 +4,9 @@ on:
   release:
     types: [published]
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ${{ matrix.os }}
@@ -18,17 +21,7 @@ jobs:
           - os: windows-latest
             os_name: windows
             arch: x64
-            target: x86_64-pc-windows-gnu
-            ext: ".exe"
-          - os: ubuntu-latest
-            os_name: linux
-            arch: arm64
-            target: aarch64-unknown-linux-gnu
-            ext: ""
-          - os: windows-latest
-            os_name: windows
-            arch: arm64
-            target: aarch64-pc-windows-gnu
+            target: x86_64-pc-windows-msvc
             ext: ".exe"
 
     steps:
