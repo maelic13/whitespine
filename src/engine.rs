@@ -136,13 +136,14 @@ impl Engine {
             return Ok((evaluation, vec![], nodes_searched));
         }
 
-        let move_gen = MoveGen::new_legal(&game.current_position());
+        let legal_moves = MoveGen::new_legal(&game.current_position()).collect();
+        let ordered_moves = self.order_moves(&game.current_position(), legal_moves);
         let mut best_moves: Vec<ChessMove> = vec![];
         let mut moves: Vec<ChessMove>;
         let mut current_game: Game;
         let mut evaluation: f64;
 
-        for chess_move in move_gen {
+        for chess_move in ordered_moves {
             current_game = game.clone();
             current_game.make_move(chess_move);
             current_game.declare_draw();
@@ -210,9 +211,7 @@ impl Engine {
 
         let mut nodes_searched: usize = 0;
         let piece_value = PieceValue::default();
-        for (chess_move, is_capture, is_en_passant) in
-            Engine::get_captures_and_checks(&game.current_position())
-        {
+        for (chess_move, is_capture, is_en_passant) in self.get_captures_and_checks(&game) {
             if use_delta_pruning && is_en_passant && (evaluation + piece_value.pawn_value < alpha) {
                 continue;
             } else if use_delta_pruning
@@ -252,11 +251,13 @@ impl Engine {
         Ok((alpha, nodes_searched))
     }
 
-    fn get_captures_and_checks(board: &Board) -> Vec<(ChessMove, bool, bool)> {
+    fn get_captures_and_checks(&self, game: &Game) -> Vec<(ChessMove, bool, bool)> {
         let mut captures_and_checks: Vec<(ChessMove, bool, bool)> = vec![];
-        let move_gen = MoveGen::new_legal(board);
+        let legal_moves = MoveGen::new_legal(&game.current_position()).collect();
+        let ordered_moves = self.order_moves(&game.current_position(), legal_moves);
+        let board = game.current_position();
 
-        for chess_move in move_gen {
+        for chess_move in ordered_moves {
             let board_after_move = board.make_move_new(chess_move);
 
             let captured_piece = board.piece_on(chess_move.get_dest()) != None;
@@ -272,7 +273,7 @@ impl Engine {
             }
         }
 
-        return captures_and_checks;
+        captures_and_checks
     }
 
     fn start_timer(&mut self, search_options: &SearchOptions) {
@@ -295,5 +296,40 @@ impl Engine {
             self.time_for_move =
                 0.2 * search_options.black_time as f64 - search_options.move_overhead;
         }
+    }
+
+    fn order_moves(&self, board: &Board, moves: Vec<ChessMove>) -> Vec<ChessMove> {
+        let mut scored_moves: Vec<(ChessMove, i32)> = vec![];
+        let piece_value = PieceValue::default();
+
+        for mv in moves {
+            let mut score = 0;
+            let from = mv.get_source();
+            let to = mv.get_dest();
+            let attacker = board.piece_on(from);
+            let victim = board.piece_on(to);
+
+            // MVV-LVA scoring
+            if let (Some(att), Some(vic)) = (attacker, victim) {
+                score += 10 * piece_value.get_piece_value(vic) as i32
+                    - piece_value.get_piece_value(att) as i32;
+            }
+
+            // Promotion bonus
+            if let Some(promo) = mv.get_promotion() {
+                score += 5 * piece_value.get_piece_value(promo) as i32;
+            }
+
+            // Check bonus
+            let new_board = board.make_move_new(mv);
+            if new_board.checkers().0 != 0 {
+                score += 1;
+            }
+
+            scored_moves.push((mv, score));
+        }
+
+        scored_moves.sort_by(|a, b| b.1.cmp(&a.1));
+        scored_moves.into_iter().map(|(mv, _)| mv).collect()
     }
 }
