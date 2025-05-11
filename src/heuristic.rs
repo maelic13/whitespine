@@ -98,7 +98,7 @@ impl Heuristic {
 
         // TODO: syzygy tablebase evaluation
 
-        return self.evaluate_internal(&game.current_position());
+        self.evaluate_internal(&game.current_position())
     }
 
     fn _pawn_advantage_to_win_probability(pawn_advantage: f64) -> f64 {
@@ -113,7 +113,7 @@ impl Heuristic {
         } else if win_probability >= 1. {
             win_probability = 1. - 1e-9
         }
-        return 4. * (win_probability / (1. - win_probability)).log10();
+        4. * (win_probability / (1. - win_probability)).log10()
     }
 
     fn evaluate_internal(&self, board: &Board) -> f64 {
@@ -202,7 +202,7 @@ impl Heuristic {
             }
         }
 
-        return player_value - opponent_value;
+        player_value - opponent_value
     }
 
     fn pawn_bonus(&self, pawn: Square, color: Color, opponent_king: Square) -> f64 {
@@ -226,7 +226,7 @@ impl Heuristic {
         p_bonus +=
             Heuristic::distance_from_king_bonus(pawn, opponent_king, self.pawn_distance_weight);
 
-        return p_bonus;
+        p_bonus
     }
 
     fn knight_bonus(&self, knight: Square, opponent_king: Square) -> f64 {
@@ -238,7 +238,7 @@ impl Heuristic {
         k_bonus +=
             Heuristic::distance_from_king_bonus(knight, opponent_king, self.knight_distance_weight);
 
-        return k_bonus;
+        k_bonus
     }
 
     fn bishop_bonus(&self, bishop: Square, opponent_king: Square) -> f64 {
@@ -250,7 +250,7 @@ impl Heuristic {
         b_bonus +=
             Heuristic::distance_from_king_bonus(bishop, opponent_king, self.bishop_distance_weight);
 
-        return b_bonus;
+        b_bonus
     }
 
     fn rook_bonus(&self, rook: Square, opponent_king: Square) -> f64 {
@@ -270,7 +270,7 @@ impl Heuristic {
         r_bonus +=
             Heuristic::distance_from_king_bonus(rook, opponent_king, self.rook_distance_weight);
 
-        return r_bonus;
+        r_bonus
     }
 
     fn queen_bonus(&self, queen: Square, opponent_king: Square) -> f64 {
@@ -282,7 +282,7 @@ impl Heuristic {
         q_bonus +=
             Heuristic::distance_from_king_bonus(queen, opponent_king, self.queen_distance_weight);
 
-        return q_bonus;
+        q_bonus
     }
 
     fn king_bonus(&self, king: Square, opponent_king: Square, no_queens: bool) -> f64 {
@@ -301,7 +301,7 @@ impl Heuristic {
         k_bonus +=
             Heuristic::distance_from_king_bonus(king, opponent_king, self.king_distance_weight);
 
-        return k_bonus;
+        k_bonus
     }
 
     fn occupying_center_bonus(piece: Square, bonus: f64) -> f64 {
@@ -321,7 +321,7 @@ impl Heuristic {
         {
             return bonus;
         }
-        return 0.;
+        0.
     }
 
     fn distance_from_king_bonus(piece: Square, king: Square, bonus: f64) -> f64 {
@@ -329,6 +329,6 @@ impl Heuristic {
         let distance = (piece.get_rank().to_index() as f64 - king.get_rank().to_index() as f64)
             .abs()
             + (piece.get_file().to_index() as f64 - king.get_file().to_index() as f64).abs();
-        return 14. / distance * bonus - bonus;
+        14. / distance * bonus - bonus
     }
 }

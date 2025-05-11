@@ -51,9 +51,9 @@ impl Engine {
 
     fn check_stop(&self) -> bool {
         let command = self.receiver.try_recv().unwrap_or(EngineCommand::default());
-        return command.stop
+        command.stop
             || command.quit
-            || self.timer.unwrap().elapsed().as_millis() as f64 > self.time_for_move;
+            || self.timer.unwrap().elapsed().as_millis() as f64 > self.time_for_move
     }
 
     fn search(&mut self, game: &Game, max_depth: f64) {
@@ -183,10 +183,10 @@ impl Engine {
         }
 
         if game.result().is_some() {
-            return Ok((self.heuristic.evaluate(game), 0));
+            return Ok((0.95 * self.heuristic.evaluate(game), 0));
         }
 
-        let evaluation = self.heuristic.evaluate(game);
+        let evaluation = 0.95 * self.heuristic.evaluate(game);
 
         if evaluation >= beta {
             return Ok((beta, 0));
@@ -249,7 +249,7 @@ impl Engine {
             }
         }
 
-        return Ok((alpha, nodes_searched));
+        Ok((alpha, nodes_searched))
     }
 
     fn get_captures_and_checks(board: &Board) -> Vec<(ChessMove, bool, bool)> {
