@@ -281,20 +281,35 @@ impl Engine {
         self.timer = Some(Instant::now());
         self.time_for_move = f64::INFINITY;
 
-        if search_options.move_time != 0 {
-            self.time_for_move = search_options.move_time as f64 - search_options.move_overhead;
-        }
-        if search_options.chess_game.side_to_move() == Color::White
-            && search_options.white_time != 0
-        {
-            self.time_for_move =
-                0.2 * search_options.white_time as f64 - search_options.move_overhead;
-        }
-        if search_options.chess_game.side_to_move() == Color::Black
-            && search_options.black_time != 0
-        {
-            self.time_for_move =
-                0.2 * search_options.black_time as f64 - search_options.move_overhead;
+        match (
+            search_options.chess_game.side_to_move(),
+            search_options.move_time,
+            search_options.white_time,
+            search_options.white_increment,
+            search_options.white_time,
+            search_options.black_increment,
+        ) {
+            (_, 0, 0, 0, 0, 0) => return,
+            (_, move_time, _, _, _, _) if move_time > 0 => {
+                self.time_for_move = move_time as f64;
+            }
+            (Color::White, _, white_time, 0, _, _) if white_time > 0 => {
+                self.time_for_move = 0.05 * (white_time as f64 - search_options.move_overhead);
+            }
+            (Color::White, _, white_time, white_increment, _, _) if white_time > 0 => {
+                self.time_for_move = (0.1 * white_time as f64 + white_increment as f64
+                    - search_options.move_overhead)
+                    .min(white_time as f64 - search_options.move_overhead);
+            }
+            (Color::Black, _, _, _, black_time, 0) if black_time > 0 => {
+                self.time_for_move = 0.05 * (black_time as f64 - search_options.move_overhead);
+            }
+            (Color::Black, _, _, _, black_time, black_increment) if black_time > 0 => {
+                self.time_for_move = (0.1 * black_time as f64 + black_increment as f64
+                    - search_options.move_overhead)
+                    .min(black_time as f64 - search_options.move_overhead);
+            }
+            _ => panic!("Incorrect time options."),
         }
     }
 
