@@ -123,7 +123,11 @@ impl Engine {
         if game.result().is_some() {
             let result = game.result().unwrap();
             let color = game.side_to_move();
-            return Ok((self.heuristic.evaluate_result(result, color), vec![], nodes_searched));
+            return Ok((
+                self.heuristic.evaluate_result(result, color),
+                vec![],
+                nodes_searched,
+            ));
         }
         if game.can_declare_draw() {
             return Ok((0.0, vec![], nodes_searched));
@@ -207,11 +211,11 @@ impl Engine {
             .combined()
             .collect::<Vec<Square>>()
             .len()
-            <= 8;
-        if use_delta_pruning {
-            if evaluation < alpha - 1000. {
-                return Ok((alpha, 0));
-            }
+            > 8;
+        let piece_value = PieceValue::default();
+
+        if use_delta_pruning && evaluation < alpha - piece_value.queen_value {
+            return Ok((alpha, 0));
         }
 
         if evaluation > alpha {
@@ -219,7 +223,6 @@ impl Engine {
         }
 
         let mut nodes_searched: usize = 0;
-        let piece_value = PieceValue::default();
         for (chess_move, is_capture, is_en_passant) in self.get_captures_and_checks(&game) {
             if use_delta_pruning && is_en_passant && (evaluation + piece_value.pawn_value < alpha) {
                 continue;
