@@ -11,24 +11,24 @@ pub struct PieceValue {
 
 impl PieceValue {
     pub fn default() -> PieceValue {
-        return PieceValue {
+        PieceValue {
             pawn_value: 100.,
             knight_value: 350.,
             bishop_value: 370.,
             rook_value: 550.,
             queen_value: 950.,
             king_value: f64::INFINITY,
-        };
+        }
     }
 
     pub fn get_piece_value(&self, piece: Piece) -> f64 {
-        return match piece {
+        match piece {
             Piece::Pawn => self.pawn_value,
             Piece::Knight => self.knight_value,
             Piece::Bishop => self.bishop_value,
             Piece::Rook => self.rook_value,
             Piece::Queen => self.queen_value,
             Piece::King => self.king_value,
-        };
+        }
     }
 }

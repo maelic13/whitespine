@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use chess::{Board, Color, Game, GameResult, Piece, Square};
+use chess::{Color, Game, GameResult, Piece, Square};
 
 use crate::piece_value::PieceValue;
 
@@ -66,57 +66,30 @@ impl Heuristic {
         }
     }
 
-    pub fn evaluate(&self, game: &Game) -> f64 {
+    pub fn evaluate_result(&self, result: GameResult, color: Color) -> f64 {
+        /* Evaluate game result and return value in centi-pawns. */
+        match (result, color) {
+            (GameResult::WhiteCheckmates, Color::White) => self.win_value,
+            (GameResult::WhiteCheckmates, Color::Black) => self.loss_value,
+            (GameResult::BlackCheckmates, Color::Black) => self.win_value,
+            (GameResult::BlackCheckmates, Color::White) => self.loss_value,
+
+            (GameResult::Stalemate, _) => self.draw_value,
+            (GameResult::DrawAccepted, _) => self.draw_value,
+            (GameResult::DrawDeclared, _) => self.draw_value,
+
+            (GameResult::WhiteResigns, Color::White) => self.loss_value,
+            (GameResult::WhiteResigns, Color::Black) => self.win_value,
+            (GameResult::BlackResigns, Color::White) => self.win_value,
+            (GameResult::BlackResigns, Color::Black) => self.loss_value,
+        }
+    }
+
+    pub fn evaluate_position(&self, game: &Game) -> f64 {
         /* Evaluate board and return value in centi-pawns. */
-        if game.can_declare_draw() {
-            return 0.;
-        }
-
-        let result = game.result();
-        let color = game.side_to_move();
-        if result.is_some() {
-            return match result.unwrap() {
-                GameResult::WhiteCheckmates | GameResult::BlackResigns => {
-                    if color == Color::White {
-                        self.win_value
-                    } else {
-                        self.loss_value
-                    }
-                }
-                GameResult::WhiteResigns | GameResult::BlackCheckmates => {
-                    if color == Color::Black {
-                        self.win_value
-                    } else {
-                        self.loss_value
-                    }
-                }
-                GameResult::Stalemate | GameResult::DrawAccepted | GameResult::DrawDeclared => {
-                    self.draw_value
-                }
-            };
-        }
-
         // TODO: syzygy tablebase evaluation
 
-        self.evaluate_internal(&game.current_position())
-    }
-
-    fn _pawn_advantage_to_win_probability(pawn_advantage: f64) -> f64 {
-        /* Calculate winning probability given pawn advantage. */
-        return 1. / (1. + (10_f64).powf(-pawn_advantage / 4.));
-    }
-
-    fn _win_probability_to_pawn_advantage(mut win_probability: f64) -> f64 {
-        /* Calculate pawn advantage given winning probability. */
-        if win_probability <= 0. {
-            win_probability = 1e-9
-        } else if win_probability >= 1. {
-            win_probability = 1. - 1e-9
-        }
-        4. * (win_probability / (1. - win_probability)).log10()
-    }
-
-    fn evaluate_internal(&self, board: &Board) -> f64 {
+        let board = game.current_position();
         let pawns = board.pieces(Piece::Pawn);
         let knights = board.pieces(Piece::Knight);
         let bishops = board.pieces(Piece::Bishop);
@@ -162,7 +135,7 @@ impl Heuristic {
                 player_value += self.bishop_bonus(square, board.king_square(!board.side_to_move()))
             } else {
                 opponent_value += piece_value.bishop_value;
-                opponent_value += self.knight_bonus(square, board.king_square(board.side_to_move()))
+                opponent_value += self.bishop_bonus(square, board.king_square(board.side_to_move()))
             }
         }
 
@@ -203,6 +176,21 @@ impl Heuristic {
         }
 
         player_value - opponent_value
+    }
+
+    fn _pawn_advantage_to_win_probability(pawn_advantage: f64) -> f64 {
+        /* Calculate winning probability given pawn advantage. */
+        return 1. / (1. + (10_f64).powf(-pawn_advantage / 4.));
+    }
+
+    fn _win_probability_to_pawn_advantage(mut win_probability: f64) -> f64 {
+        /* Calculate pawn advantage given winning probability. */
+        if win_probability <= 0. {
+            win_probability = 1e-9
+        } else if win_probability >= 1. {
+            win_probability = 1. - 1e-9
+        }
+        4. * (win_probability / (1. - win_probability)).log10()
     }
 
     fn pawn_bonus(&self, pawn: Square, color: Color, opponent_king: Square) -> f64 {

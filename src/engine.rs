@@ -121,7 +121,12 @@ impl Engine {
         let mut nodes_searched: usize = 1;
 
         if game.result().is_some() {
-            return Ok((self.heuristic.evaluate(game), vec![], nodes_searched));
+            let result = game.result().unwrap();
+            let color = game.side_to_move();
+            return Ok((self.heuristic.evaluate_result(result, color), vec![], nodes_searched));
+        }
+        if game.can_declare_draw() {
+            return Ok((0.0, vec![], nodes_searched));
         }
         if depth == 0. {
             let evaluation: f64;
@@ -146,7 +151,6 @@ impl Engine {
         for chess_move in ordered_moves {
             current_game = game.clone();
             current_game.make_move(chess_move);
-            current_game.declare_draw();
 
             let result = self.negamax(&current_game, depth - 1., -beta, -alpha);
             match result {
@@ -184,10 +188,15 @@ impl Engine {
         }
 
         if game.result().is_some() {
-            return Ok((0.95 * self.heuristic.evaluate(game), 0));
+            let result = game.result().unwrap();
+            let color = game.side_to_move();
+            return Ok((0.95 * self.heuristic.evaluate_result(result, color), 0));
+        }
+        if game.can_declare_draw() {
+            return Ok((0.0, 0));
         }
 
-        let evaluation = 0.95 * self.heuristic.evaluate(game);
+        let evaluation = 0.95 * self.heuristic.evaluate_position(game);
 
         if evaluation >= beta {
             return Ok((beta, 0));
@@ -198,7 +207,7 @@ impl Engine {
             .combined()
             .collect::<Vec<Square>>()
             .len()
-            == 8;
+            <= 8;
         if use_delta_pruning {
             if evaluation < alpha - 1000. {
                 return Ok((alpha, 0));
