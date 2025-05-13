@@ -14,9 +14,9 @@ impl PieceValue {
         return PieceValue {
             pawn_value: 100.,
             knight_value: 350.,
-            bishop_value: 350.,
-            rook_value: 525.,
-            queen_value: 1000.,
+            bishop_value: 370.,
+            rook_value: 550.,
+            queen_value: 950.,
             king_value: f64::INFINITY,
         };
     }
