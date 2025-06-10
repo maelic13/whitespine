@@ -13,6 +13,7 @@ jobs:
     strategy:
       matrix:
         include:
+          # Linux
           - os: ubuntu-latest
             os_name: linux
             arch: x64
@@ -23,6 +24,8 @@ jobs:
             arch: arm64
             target: aarch64-unknown-linux-gnu
             ext: ""
+
+          # Linux musl
           - os: ubuntu-latest
             os_name: linux-musl
             arch: x64
@@ -33,6 +36,8 @@ jobs:
             arch: arm64
             target: aarch64-unknown-linux-musl
             ext: ""
+
+          # Windows
           - os: windows-latest
             os_name: windows
             arch: x64
@@ -43,6 +48,8 @@ jobs:
             arch: arm64
             target: aarch64-pc-windows-msvc
             ext: ".exe"
+
+          # macOS
           - os: macos-13
             os_name: macos
             arch: x64
