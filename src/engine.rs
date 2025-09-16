@@ -298,7 +298,7 @@ impl Engine {
             search_options.move_time,
             search_options.white_time,
             search_options.white_increment,
-            search_options.white_time,
+            search_options.black_time,
             search_options.black_increment,
         ) {
             (_, 0, 0, 0, 0, 0) => return,
