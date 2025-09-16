@@ -25,18 +25,6 @@ jobs:
             target: aarch64-unknown-linux-gnu
             ext: ""
 
-          # Linux musl
-          - os: ubuntu-latest
-            os_name: linux-musl
-            arch: x64
-            target: x86_64-unknown-linux-musl
-            ext: ""
-          - os: ubuntu-24.04-arm
-            os_name: linux-musl
-            arch: arm64
-            target: aarch64-unknown-linux-musl
-            ext: ""
-
           # Windows
           - os: windows-latest
             os_name: windows
