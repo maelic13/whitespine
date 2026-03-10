@@ -1,322 +1,307 @@
 use std::path::PathBuf;
 
-use chess::{Color, Game, GameResult, Piece, Square};
-
-use crate::piece_value::PieceValue;
+use chess::{Board, Color, Piece, Square};
 
 #[derive(Debug, Clone)]
 pub struct Heuristic {
     pub fifty_moves_rule: bool,
     pub syzygy_path: Option<PathBuf>,
-
-    draw_value: f64,
-    loss_value: f64,
-    win_value: f64,
-
-    pawn_rank_weight: f64,
-    pawn_file_weight: f64,
-    pawn_center_weight: f64,
-    pawn_distance_weight: f64,
-
-    knight_center_weight: f64,
-    knight_distance_weight: f64,
-
-    bishop_center_weight: f64,
-    bishop_distance_weight: f64,
-
-    rook_center_weight: f64,
-    rook_distance_weight: f64,
-
-    queen_center_weight: f64,
-    queen_distance_weight: f64,
-
-    king_center_weight: f64,
-    king_distance_weight: f64,
 }
+
+const MG_VALUE: [i32; 6] = [82, 337, 365, 477, 1025, 0];
+const EG_VALUE: [i32; 6] = [94, 281, 297, 512, 936, 0];
+const PHASE_WEIGHT: [i32; 6] = [0, 1, 1, 2, 4, 0];
+
+const MG_PAWN_TABLE: [i32; 64] = [
+    0, 0, 0, 0, 0, 0, 0, 0, 98, 134, 61, 95, 68, 126, 34, -11, -6, 7, 26, 31, 65, 56, 25, -20, -14,
+    13, 6, 21, 23, 12, 17, -23, -27, -2, -5, 12, 17, 6, 10, -25, -26, -4, -4, -10, 3, 3, 33, -12,
+    -35, -1, -20, -23, -15, 24, 38, -22, 0, 0, 0, 0, 0, 0, 0, 0,
+];
+const EG_PAWN_TABLE: [i32; 64] = [
+    0, 0, 0, 0, 0, 0, 0, 0, 178, 173, 158, 134, 147, 132, 165, 187, 94, 100, 85, 67, 56, 53, 82,
+    84, 32, 24, 13, 5, -2, 4, 17, 17, 13, 9, -3, -7, -7, -8, 3, -1, 4, 7, -6, 1, 0, -5, -1, -8, 13,
+    8, 8, 10, 13, 0, 2, -7, 0, 0, 0, 0, 0, 0, 0, 0,
+];
+const MG_KNIGHT_TABLE: [i32; 64] = [
+    -167, -89, -34, -49, 61, -97, -15, -107, -73, -41, 72, 36, 23, 62, 7, -17, -47, 60, 37, 65, 84,
+    129, 73, 44, -9, 17, 19, 53, 37, 69, 18, 22, -13, 4, 16, 13, 28, 19, 21, -8, -23, -9, 12, 10,
+    19, 17, 25, -16, -29, -53, -12, -3, -1, 18, -14, -19, -105, -21, -58, -33, -17, -28, -19, -23,
+];
+const EG_KNIGHT_TABLE: [i32; 64] = [
+    -58, -38, -13, -28, -31, -27, -63, -99, -25, -8, -25, -2, -9, -25, -24, -52, -24, -20, 10, 9,
+    -1, -9, -19, -41, -17, 3, 22, 22, 22, 11, 8, -18, -18, -6, 16, 25, 16, 17, 4, -18, -23, -3, -1,
+    15, 10, -3, -20, -22, -42, -20, -10, -5, -2, -20, -23, -44, -29, -51, -23, -15, -22, -18, -50,
+    -64,
+];
+const MG_BISHOP_TABLE: [i32; 64] = [
+    -29, 4, -82, -37, -25, -42, 7, -8, -26, 16, -18, -13, 30, 59, 18, -47, -16, 37, 43, 40, 35, 50,
+    37, -2, -4, 5, 19, 50, 37, 37, 7, -2, -6, 13, 13, 26, 34, 12, 10, 4, 0, 15, 15, 15, 14, 27, 18,
+    10, 4, 15, 16, 0, 7, 21, 33, 1, -33, -3, -14, -21, -13, -12, -39, -21,
+];
+const EG_BISHOP_TABLE: [i32; 64] = [
+    -14, -21, -11, -8, -7, -9, -17, -24, -8, -4, 7, -12, -3, -13, -4, -14, 2, -8, 0, -1, -2, 6, 0,
+    4, -3, 9, 12, 9, 14, 10, 3, 2, -6, 3, 13, 19, 7, 10, -3, -9, -12, -3, 8, 10, 13, 3, -7, -15,
+    -14, -18, -7, -1, 4, -9, -15, -27, -23, -9, -23, -5, -9, -16, -5, -17,
+];
+const MG_ROOK_TABLE: [i32; 64] = [
+    32, 42, 32, 51, 63, 9, 31, 43, 27, 32, 58, 62, 80, 67, 26, 44, -5, 19, 26, 36, 17, 45, 61, 16,
+    -24, -11, 7, 26, 24, 35, -8, -20, -36, -26, -12, -1, 9, -7, 6, -23, -45, -25, -16, -17, 3, 0,
+    -5, -33, -44, -16, -20, -9, -1, 11, -6, -71, -19, -13, 1, 17, 16, 7, -37, -26,
+];
+const EG_ROOK_TABLE: [i32; 64] = [
+    13, 10, 18, 15, 12, 12, 8, 5, 11, 13, 13, 11, -3, 3, 8, 3, 7, 7, 7, 5, 4, -3, -5, -3, 4, 3, 13,
+    1, 2, 1, -1, 2, 3, 5, 8, 4, -5, -6, -8, -11, -4, 0, -5, -1, -7, -12, -8, -16, -6, -6, 0, 2, -9,
+    -9, -11, -3, -9, 2, 3, -1, -5, -13, 4, -20,
+];
+const MG_QUEEN_TABLE: [i32; 64] = [
+    -28, 0, 29, 12, 59, 44, 43, 45, -24, -39, -5, 1, -16, 57, 28, 54, -13, -17, 7, 8, 29, 56, 47,
+    57, -27, -27, -16, -16, -1, 17, -2, 1, -9, -26, -9, -10, -2, -4, 3, -3, -14, 2, -11, -2, -5, 2,
+    14, 5, -35, -8, 11, 2, 8, 15, -3, 1, -1, -18, -9, 10, -15, -25, -31, -50,
+];
+const EG_QUEEN_TABLE: [i32; 64] = [
+    -9, 22, 22, 27, 27, 19, 10, 20, -17, 20, 32, 41, 58, 25, 30, 0, -20, 6, 9, 49, 47, 35, 19, 9,
+    3, 22, 24, 45, 57, 40, 57, 36, -18, 28, 19, 47, 31, 34, 39, 23, -16, -27, 15, 6, 9, 17, 10, 5,
+    -22, -23, -30, -16, -16, -23, -36, -32, -33, -28, -22, -43, -5, -32, -20, -41,
+];
+const MG_KING_TABLE: [i32; 64] = [
+    -65, 23, 16, -15, -56, -34, 2, 13, 29, -1, -20, -7, -8, -4, -38, -29, -9, 24, 2, -16, -20, 6,
+    22, -22, -17, -20, -12, -27, -30, -25, -14, -36, -49, -1, -27, -39, -46, -44, -33, -51, -14,
+    -14, -22, -46, -44, -30, -15, -27, 1, 7, -8, -64, -43, -16, 9, 8, -15, 36, 12, -54, 8, -28, 24,
+    14,
+];
+const EG_KING_TABLE: [i32; 64] = [
+    -74, -35, -18, -18, -11, 15, 4, -17, -12, 17, 14, 17, 17, 38, 23, 11, 10, 17, 23, 15, 20, 45,
+    44, 13, -8, 22, 24, 27, 26, 33, 26, 3, -18, -4, 21, 24, 27, 23, 9, -11, -19, -3, 11, 21, 23,
+    16, 7, -9, -27, -11, 4, 13, 14, 4, -5, -17, -53, -34, -21, -11, -28, -14, -24, -43,
+];
+
+const PASSED_PAWN_MG: [i32; 8] = [0, 5, 10, 20, 35, 60, 90, 0];
+const PASSED_PAWN_EG: [i32; 8] = [0, 10, 20, 35, 60, 100, 160, 0];
+
+const BISHOP_PAIR_MG: i32 = 35;
+const BISHOP_PAIR_EG: i32 = 45;
+const DOUBLED_PAWN_MG: i32 = 10;
+const DOUBLED_PAWN_EG: i32 = 20;
+const ISOLATED_PAWN_MG: i32 = 12;
+const ISOLATED_PAWN_EG: i32 = 10;
+const CONNECTED_PAWN_MG: i32 = 8;
+const CONNECTED_PAWN_EG: i32 = 12;
+const ROOK_OPEN_FILE_MG: i32 = 28;
+const ROOK_OPEN_FILE_EG: i32 = 14;
+const ROOK_SEMIOPEN_FILE_MG: i32 = 14;
+const ROOK_SEMIOPEN_FILE_EG: i32 = 8;
+const KING_SHELTER_BONUS: i32 = 10;
+const CASTLE_RIGHTS_BONUS: i32 = 12;
+const TEMPO_BONUS: i32 = 10;
 
 impl Heuristic {
     pub fn default() -> Heuristic {
         Heuristic {
             fifty_moves_rule: true,
             syzygy_path: None,
-
-            draw_value: 0.,       // [cp]
-            loss_value: -120_00., // [cp]
-            win_value: 120_00.,   // [cp]
-
-            pawn_rank_weight: 7.,
-            pawn_file_weight: 5.,
-            pawn_center_weight: 5.,
-            pawn_distance_weight: 5.,
-
-            knight_center_weight: 7.,
-            knight_distance_weight: 8.,
-
-            bishop_center_weight: 5.,
-            bishop_distance_weight: 8.,
-
-            rook_center_weight: 8.,
-            rook_distance_weight: 5.,
-
-            queen_center_weight: 2.,
-            queen_distance_weight: 8.,
-
-            king_center_weight: 8.,
-            king_distance_weight: 5.,
         }
     }
 
-    pub fn evaluate_result(&self, result: GameResult, color: Color) -> f64 {
-        /* Evaluate game result and return value in centi-pawns. */
-        match (result, color) {
-            (GameResult::WhiteCheckmates, Color::White) => self.win_value,
-            (GameResult::WhiteCheckmates, Color::Black) => self.loss_value,
-            (GameResult::BlackCheckmates, Color::Black) => self.win_value,
-            (GameResult::BlackCheckmates, Color::White) => self.loss_value,
+    pub fn evaluate_board(&self, board: &Board) -> i32 {
+        let mut mg_score = [0; 2];
+        let mut eg_score = [0; 2];
+        let mut phase = 0;
+        let mut bishops = [0; 2];
+        let mut pawns_by_file = [[0; 8]; 2];
+        let mut pawns = [Vec::new(), Vec::new()];
+        let mut rooks = [Vec::new(), Vec::new()];
+        let mut king_square = [Square::default(), Square::default()];
 
-            (GameResult::Stalemate, _) => self.draw_value,
-            (GameResult::DrawAccepted, _) => self.draw_value,
-            (GameResult::DrawDeclared, _) => self.draw_value,
+        for piece in [
+            Piece::Pawn,
+            Piece::Knight,
+            Piece::Bishop,
+            Piece::Rook,
+            Piece::Queen,
+            Piece::King,
+        ] {
+            for square in *board.pieces(piece) {
+                let color = board.color_on(square).unwrap();
+                let side = color.to_index();
+                let index = oriented_square(square, color);
+                let piece_index = piece.to_index();
 
-            (GameResult::WhiteResigns, Color::White) => self.loss_value,
-            (GameResult::WhiteResigns, Color::Black) => self.win_value,
-            (GameResult::BlackResigns, Color::White) => self.win_value,
-            (GameResult::BlackResigns, Color::Black) => self.loss_value,
-        }
-    }
+                mg_score[side] += MG_VALUE[piece_index] + mg_table(piece)[index];
+                eg_score[side] += EG_VALUE[piece_index] + eg_table(piece)[index];
+                phase += PHASE_WEIGHT[piece_index];
 
-    pub fn evaluate_position(&self, game: &Game) -> f64 {
-        /* Evaluate board and return value in centi-pawns. */
-        // TODO: syzygy tablebase evaluation
-
-        let board = game.current_position();
-        let pawns = board.pieces(Piece::Pawn);
-        let knights = board.pieces(Piece::Knight);
-        let bishops = board.pieces(Piece::Bishop);
-        let rooks = board.pieces(Piece::Rook);
-        let queens = board.pieces(Piece::Queen);
-        let kings = board.pieces(Piece::King);
-
-        let mut player_value: f64 = 0.;
-        let mut opponent_value: f64 = 0.;
-        let piece_value = PieceValue::default();
-
-        for square in pawns.into_iter() {
-            if board.color_on(square).unwrap() == board.side_to_move() {
-                player_value += piece_value.pawn_value;
-                player_value += self.pawn_bonus(
-                    square,
-                    board.side_to_move(),
-                    board.king_square(!board.side_to_move()),
-                );
-            } else {
-                opponent_value += piece_value.pawn_value;
-                opponent_value += self.pawn_bonus(
-                    square,
-                    !board.side_to_move(),
-                    board.king_square(board.side_to_move()),
-                );
+                match piece {
+                    Piece::Pawn => {
+                        pawns_by_file[side][square.get_file().to_index()] += 1;
+                        pawns[side].push(square);
+                    }
+                    Piece::Bishop => bishops[side] += 1,
+                    Piece::Rook => rooks[side].push(square),
+                    Piece::King => king_square[side] = square,
+                    _ => {}
+                }
             }
         }
 
-        for square in knights.into_iter() {
-            if board.color_on(square).unwrap() == board.side_to_move() {
-                player_value += piece_value.knight_value;
-                player_value += self.knight_bonus(square, board.king_square(!board.side_to_move()))
-            } else {
-                opponent_value += piece_value.knight_value;
-                opponent_value += self.knight_bonus(square, board.king_square(board.side_to_move()))
+        for color in [Color::White, Color::Black] {
+            let side = color.to_index();
+            let enemy = (!color).to_index();
+
+            if bishops[side] >= 2 {
+                mg_score[side] += BISHOP_PAIR_MG;
+                eg_score[side] += BISHOP_PAIR_EG;
+            }
+
+            if board.castle_rights(color) != chess::CastleRights::NoRights {
+                mg_score[side] += CASTLE_RIGHTS_BONUS;
+            }
+
+            let shelter = king_shelter(color, king_square[side], &pawns[side]);
+            mg_score[side] += shelter * KING_SHELTER_BONUS;
+
+            for pawn in &pawns[side] {
+                let file = pawn.get_file().to_index();
+                let rank_progress = relative_rank(*pawn, color);
+
+                if pawns_by_file[side][file] > 1 {
+                    mg_score[side] -= DOUBLED_PAWN_MG * (pawns_by_file[side][file] - 1);
+                    eg_score[side] -= DOUBLED_PAWN_EG * (pawns_by_file[side][file] - 1);
+                }
+
+                let left_support = file > 0 && pawns_by_file[side][file - 1] > 0;
+                let right_support = file < 7 && pawns_by_file[side][file + 1] > 0;
+                if !left_support && !right_support {
+                    mg_score[side] -= ISOLATED_PAWN_MG;
+                    eg_score[side] -= ISOLATED_PAWN_EG;
+                } else {
+                    mg_score[side] += CONNECTED_PAWN_MG;
+                    eg_score[side] += CONNECTED_PAWN_EG;
+                }
+
+                if is_passed_pawn(*pawn, color, &pawns[enemy]) {
+                    mg_score[side] += PASSED_PAWN_MG[rank_progress];
+                    eg_score[side] += PASSED_PAWN_EG[rank_progress];
+                }
+            }
+
+            for rook in &rooks[side] {
+                let file = rook.get_file().to_index();
+                let own_pawns = pawns_by_file[side][file];
+                let enemy_pawns = pawns_by_file[enemy][file];
+                if own_pawns == 0 {
+                    if enemy_pawns == 0 {
+                        mg_score[side] += ROOK_OPEN_FILE_MG;
+                        eg_score[side] += ROOK_OPEN_FILE_EG;
+                    } else {
+                        mg_score[side] += ROOK_SEMIOPEN_FILE_MG;
+                        eg_score[side] += ROOK_SEMIOPEN_FILE_EG;
+                    }
+                }
             }
         }
 
-        for square in bishops.into_iter() {
-            if board.color_on(square).unwrap() == board.side_to_move() {
-                player_value += piece_value.bishop_value;
-                player_value += self.bishop_bonus(square, board.king_square(!board.side_to_move()))
-            } else {
-                opponent_value += piece_value.bishop_value;
-                opponent_value += self.bishop_bonus(square, board.king_square(board.side_to_move()))
-            }
-        }
-
-        for square in rooks.into_iter() {
-            if board.color_on(square).unwrap() == board.side_to_move() {
-                player_value += piece_value.rook_value;
-                player_value += self.rook_bonus(square, board.king_square(!board.side_to_move()))
-            } else {
-                opponent_value += piece_value.rook_value;
-                opponent_value += self.rook_bonus(square, board.king_square(board.side_to_move()))
-            }
-        }
-
-        for square in queens.into_iter() {
-            if board.color_on(square).unwrap() == board.side_to_move() {
-                player_value += piece_value.queen_value;
-                player_value += self.queen_bonus(square, board.king_square(!board.side_to_move()))
-            } else {
-                opponent_value += piece_value.queen_value;
-                opponent_value += self.queen_bonus(square, board.king_square(board.side_to_move()))
-            }
-        }
-
-        for square in kings.into_iter() {
-            if board.color_on(square).unwrap() == board.side_to_move() {
-                player_value += self.king_bonus(
-                    square,
-                    board.king_square(!board.side_to_move()),
-                    queens.count() == 0,
-                )
-            } else {
-                opponent_value += self.king_bonus(
-                    square,
-                    board.king_square(board.side_to_move()),
-                    queens.count() == 0,
-                )
-            }
-        }
-
-        player_value - opponent_value
-    }
-
-    fn _pawn_advantage_to_win_probability(pawn_advantage: f64) -> f64 {
-        /* Calculate winning probability given pawn advantage. */
-        return 1. / (1. + (10_f64).powf(-pawn_advantage / 4.));
-    }
-
-    fn _win_probability_to_pawn_advantage(mut win_probability: f64) -> f64 {
-        /* Calculate pawn advantage given winning probability. */
-        if win_probability <= 0. {
-            win_probability = 1e-9
-        } else if win_probability >= 1. {
-            win_probability = 1. - 1e-9
-        }
-        4. * (win_probability / (1. - win_probability)).log10()
-    }
-
-    fn pawn_bonus(&self, pawn: Square, color: Color, opponent_king: Square) -> f64 {
-        /* Evaluation bonus for positions of pawns on board. */
-
-        // rank bonus -> the further forward the pawn, the more of a bonus
-        let mut p_bonus =
-            (pawn.get_rank().to_index() as f64 - color.to_second_rank().to_index() as f64).abs()
-                * self.pawn_rank_weight;
-
-        // file penalty -> central files take none, the closer to rim the less pawn's value
-        if pawn.get_file().to_index() < 3 {
-            p_bonus -= (3. - pawn.get_file().to_index() as f64) * self.pawn_file_weight;
-        } else if pawn.get_file().to_index() > 4 {
-            p_bonus -= (pawn.get_file().to_index() as f64 - 4.) * self.pawn_file_weight;
-        }
-
-        // occupying center bonus
-        p_bonus += Heuristic::occupying_center_bonus(pawn, self.pawn_center_weight);
-        // distance from king bonus
-        p_bonus +=
-            Heuristic::distance_from_king_bonus(pawn, opponent_king, self.pawn_distance_weight);
-
-        p_bonus
-    }
-
-    fn knight_bonus(&self, knight: Square, opponent_king: Square) -> f64 {
-        /* Evaluation bonus for positions knights on board. */
-
-        // occupying center bonus
-        let mut k_bonus = Heuristic::occupying_center_bonus(knight, self.knight_center_weight);
-        // distance from king bonus
-        k_bonus +=
-            Heuristic::distance_from_king_bonus(knight, opponent_king, self.knight_distance_weight);
-
-        k_bonus
-    }
-
-    fn bishop_bonus(&self, bishop: Square, opponent_king: Square) -> f64 {
-        /* Evaluation bonus for positions of bishops on board. */
-
-        // occupying center bonus
-        let mut b_bonus = Heuristic::occupying_center_bonus(bishop, self.bishop_center_weight);
-        // distance from king bonus
-        b_bonus +=
-            Heuristic::distance_from_king_bonus(bishop, opponent_king, self.bishop_distance_weight);
-
-        b_bonus
-    }
-
-    fn rook_bonus(&self, rook: Square, opponent_king: Square) -> f64 {
-        /* Evaluation bonus for positions of rooks on board. */
-        let mut r_bonus = 0.;
-
-        // occupying center files bonus
-        if (3usize..5usize).contains(&rook.get_file().to_index()) {
-            r_bonus += 3. * self.rook_center_weight;
-        } else if (2usize..6usize).contains(&rook.get_file().to_index()) {
-            r_bonus += 2. * self.rook_center_weight;
-        } else if (1usize..7usize).contains(&rook.get_file().to_index()) {
-            r_bonus += self.rook_center_weight;
-        }
-
-        // distance from king bonus
-        r_bonus +=
-            Heuristic::distance_from_king_bonus(rook, opponent_king, self.rook_distance_weight);
-
-        r_bonus
-    }
-
-    fn queen_bonus(&self, queen: Square, opponent_king: Square) -> f64 {
-        /* Evaluation bonus for positions of queens on board. */
-
-        // occupying center bonus
-        let mut q_bonus = Heuristic::occupying_center_bonus(queen, self.queen_center_weight);
-        // distance from king bonus
-        q_bonus +=
-            Heuristic::distance_from_king_bonus(queen, opponent_king, self.queen_distance_weight);
-
-        q_bonus
-    }
-
-    fn king_bonus(&self, king: Square, opponent_king: Square, no_queens: bool) -> f64 {
-        /* Evaluation bonus for positions of king on board. */
-        let king_center_weight: f64;
-        if no_queens {
-            king_center_weight = self.king_center_weight;
+        if board.side_to_move() == Color::White {
+            mg_score[0] += TEMPO_BONUS;
         } else {
-            king_center_weight = -self.king_center_weight;
+            mg_score[1] += TEMPO_BONUS;
         }
 
-        // occupying center bonus
-        let mut k_bonus = Heuristic::occupying_center_bonus(king, king_center_weight);
+        let phase = phase.min(24);
+        let white = (mg_score[0] * phase + eg_score[0] * (24 - phase)) / 24;
+        let black = (mg_score[1] * phase + eg_score[1] * (24 - phase)) / 24;
+        let score = white - black;
 
-        // distance from king bonus
-        k_bonus +=
-            Heuristic::distance_from_king_bonus(king, opponent_king, self.king_distance_weight);
+        if board.side_to_move() == Color::White {
+            score
+        } else {
+            -score
+        }
+    }
+}
 
-        k_bonus
+fn mg_table(piece: Piece) -> &'static [i32; 64] {
+    match piece {
+        Piece::Pawn => &MG_PAWN_TABLE,
+        Piece::Knight => &MG_KNIGHT_TABLE,
+        Piece::Bishop => &MG_BISHOP_TABLE,
+        Piece::Rook => &MG_ROOK_TABLE,
+        Piece::Queen => &MG_QUEEN_TABLE,
+        Piece::King => &MG_KING_TABLE,
+    }
+}
+
+fn eg_table(piece: Piece) -> &'static [i32; 64] {
+    match piece {
+        Piece::Pawn => &EG_PAWN_TABLE,
+        Piece::Knight => &EG_KNIGHT_TABLE,
+        Piece::Bishop => &EG_BISHOP_TABLE,
+        Piece::Rook => &EG_ROOK_TABLE,
+        Piece::Queen => &EG_QUEEN_TABLE,
+        Piece::King => &EG_KING_TABLE,
+    }
+}
+
+fn oriented_square(square: Square, color: Color) -> usize {
+    let index = square.to_index();
+    if color == Color::White {
+        index
+    } else {
+        index ^ 56
+    }
+}
+
+fn relative_rank(square: Square, color: Color) -> usize {
+    match color {
+        Color::White => square.get_rank().to_index(),
+        Color::Black => 7 - square.get_rank().to_index(),
+    }
+}
+
+fn king_shelter(color: Color, king: Square, pawns: &[Square]) -> i32 {
+    let king_file = king.get_file().to_index() as i32;
+    let king_rank = king.get_rank().to_index() as i32;
+    let mut shelter = 0;
+
+    for pawn in pawns {
+        let pawn_file = pawn.get_file().to_index() as i32;
+        if (pawn_file - king_file).abs() > 1 {
+            continue;
+        }
+
+        let pawn_rank = pawn.get_rank().to_index() as i32;
+        let in_front = match color {
+            Color::White => pawn_rank >= king_rank && pawn_rank <= king_rank + 2,
+            Color::Black => pawn_rank <= king_rank && pawn_rank >= king_rank - 2,
+        };
+
+        if in_front {
+            shelter += 1;
+        }
     }
 
-    fn occupying_center_bonus(piece: Square, bonus: f64) -> f64 {
-        /* Bonus for occupying squares close to center. */
-        if (3usize..5usize).contains(&piece.get_rank().to_index())
-            && (3usize..5usize).contains(&piece.get_file().to_index())
-        {
-            return 3. * bonus;
+    shelter
+}
+
+fn is_passed_pawn(pawn: Square, color: Color, enemy_pawns: &[Square]) -> bool {
+    let pawn_file = pawn.get_file().to_index() as i32;
+    let pawn_rank = pawn.get_rank().to_index() as i32;
+
+    for enemy_pawn in enemy_pawns {
+        let enemy_file = enemy_pawn.get_file().to_index() as i32;
+        if (enemy_file - pawn_file).abs() > 1 {
+            continue;
         }
-        if (2usize..6usize).contains(&piece.get_rank().to_index())
-            && (3usize..5usize).contains(&piece.get_file().to_index())
-        {
-            return 2. * bonus;
+
+        let enemy_rank = enemy_pawn.get_rank().to_index() as i32;
+        let blocks = match color {
+            Color::White => enemy_rank > pawn_rank,
+            Color::Black => enemy_rank < pawn_rank,
+        };
+
+        if blocks {
+            return false;
         }
-        if (1usize..7usize).contains(&piece.get_rank().to_index())
-            && (3usize..5usize).contains(&piece.get_file().to_index())
-        {
-            return bonus;
-        }
-        0.
     }
 
-    fn distance_from_king_bonus(piece: Square, king: Square, bonus: f64) -> f64 {
-        /* Bonus for distance from opponent's king. */
-        let distance = (piece.get_rank().to_index() as f64 - king.get_rank().to_index() as f64)
-            .abs()
-            + (piece.get_file().to_index() as f64 - king.get_file().to_index() as f64).abs();
-        14. / distance * bonus - bonus
-    }
+    true
 }
