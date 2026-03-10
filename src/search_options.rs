@@ -54,9 +54,17 @@ impl SearchOptions {
     }
 
     pub fn set_position(&mut self, args: &[String]) {
+        if args.is_empty() {
+            return;
+        }
+
         let mut board = Board::default();
 
         if args[0] == "fen" {
+            if args.len() < 2 {
+                return;
+            }
+
             let mut fen = args[1].to_string();
             for partial in args[2..].as_ref() {
                 if partial == "moves" {
@@ -68,12 +76,11 @@ impl SearchOptions {
             board = Board::from_str(fen.as_str()).expect("Board could not be created from fen.");
         }
 
-        let moves_start_index = args
+        let played_moves = args
             .iter()
             .position(|r| r == "moves")
-            .unwrap_or(args.len() - 1)
-            + 1;
-        let played_moves = args[moves_start_index..].to_vec();
+            .map(|index| args[index + 1..].to_vec())
+            .unwrap_or_default();
 
         let mut game = Game::new_with_board(board);
         for chess_move in played_moves {
@@ -158,9 +165,9 @@ impl SearchOptions {
     }
 
     pub fn search_depth(&self) -> f64 {
-        return [self.max_depth, self.depth]
+        [self.max_depth, self.depth]
             .iter()
-            .fold(f64::INFINITY, |a, &b| a.min(b));
+            .fold(f64::INFINITY, |a, &b| a.min(b))
     }
 
     fn reset_temporary_parameters(&mut self) {
@@ -170,5 +177,42 @@ impl SearchOptions {
         self.black_time = 0;
         self.black_increment = 0;
         self.depth = f64::INFINITY;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::SearchOptions;
+
+    #[test]
+    fn set_position_handles_empty_args() {
+        let mut options = SearchOptions::default();
+        options.set_position(&[]);
+        assert_eq!(
+            options.chess_game.current_position().to_string(),
+            chess::Board::default().to_string()
+        );
+    }
+
+    #[test]
+    fn set_position_supports_startpos_without_moves() {
+        let mut options = SearchOptions::default();
+        let args = vec!["startpos".to_string()];
+        options.set_position(&args);
+        assert_eq!(
+            options.chess_game.current_position().to_string(),
+            chess::Board::default().to_string()
+        );
+    }
+
+    #[test]
+    fn set_position_handles_incomplete_fen_command() {
+        let mut options = SearchOptions::default();
+        let args = vec!["fen".to_string()];
+        options.set_position(&args);
+        assert_eq!(
+            options.chess_game.current_position().to_string(),
+            chess::Board::default().to_string()
+        );
     }
 }

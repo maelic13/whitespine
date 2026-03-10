@@ -279,7 +279,7 @@ impl Heuristic {
         if no_queens {
             king_center_weight = self.king_center_weight;
         } else {
-            king_center_weight = -self.knight_center_weight;
+            king_center_weight = -self.king_center_weight;
         }
 
         // occupying center bonus

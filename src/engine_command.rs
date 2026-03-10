@@ -7,14 +7,6 @@ pub struct EngineCommand {
 }
 
 impl EngineCommand {
-    pub fn default() -> EngineCommand {
-        EngineCommand {
-            search_options: SearchOptions::default(),
-            stop: false,
-            quit: false,
-        }
-    }
-
     pub fn go(options: SearchOptions) -> EngineCommand {
         EngineCommand {
             search_options: options,

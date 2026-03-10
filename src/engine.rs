@@ -13,6 +13,7 @@ pub struct Engine {
     receiver: Receiver<EngineCommand>,
     timer: Option<Instant>,
     time_for_move: f64,
+    should_quit: bool,
 }
 
 impl Engine {
@@ -22,6 +23,7 @@ impl Engine {
             receiver,
             timer: None,
             time_for_move: f64::INFINITY,
+            should_quit: false,
         }
     }
 
@@ -41,6 +43,10 @@ impl Engine {
                 &command.search_options.chess_game,
                 command.search_options.search_depth(),
             );
+
+            if self.should_quit {
+                break;
+            }
         }
     }
 
@@ -49,25 +55,24 @@ impl Engine {
         self.heuristic.syzygy_path = search_options.syzygy_path.clone();
     }
 
-    fn check_stop(&self) -> bool {
-        let command = self.receiver.try_recv().unwrap_or(EngineCommand::default());
-        command.stop
-            || command.quit
-            || self.timer.unwrap().elapsed().as_millis() as f64 > self.time_for_move
+    fn check_stop(&mut self) -> bool {
+        if let Ok(command) = self.receiver.try_recv() {
+            if command.quit {
+                self.should_quit = true;
+            }
+
+            if command.stop || command.quit {
+                return true;
+            }
+        }
+
+        self.timer.unwrap().elapsed().as_millis() as f64 > self.time_for_move
     }
 
     fn search(&mut self, game: &Game, max_depth: f64) {
         let start = Instant::now();
-
-        // start with random move choice, to be used in case of timeout before first depth is reached
-        let move_gen = MoveGen::new_legal(&game.current_position());
-        let possible_moves: Vec<_> = move_gen.collect();
-        let mut moves: Vec<ChessMove> = vec![
-            possible_moves
-                .get((start.elapsed().as_nanos() / 100) as usize % possible_moves.len())
-                .unwrap()
-                .to_owned(),
-        ];
+        let possible_moves: Vec<ChessMove> = MoveGen::new_legal(&game.current_position()).collect();
+        let mut moves: Vec<ChessMove> = possible_moves.first().copied().into_iter().collect();
 
         let mut depth: f64 = 0.;
         let mut evaluation: f64;
@@ -98,17 +103,22 @@ impl Engine {
                 depth,
                 evaluation as isize,
                 nodes_searched,
-                (1_000_000. * nodes_searched as f64 / start.elapsed().as_micros() as f64) as usize,
+                (1_000_000. * nodes_searched as f64 / start.elapsed().as_micros().max(1) as f64)
+                    as usize,
                 start.elapsed().as_millis(),
                 string_moves.join(" ")
             )
         }
 
-        println!("bestmove {}", &moves[0].to_string());
+        if let Some(best_move) = moves.first() {
+            println!("bestmove {}", best_move);
+        } else {
+            println!("bestmove 0000");
+        }
     }
 
     fn negamax(
-        &self,
+        &mut self,
         game: &Game,
         depth: f64,
         mut alpha: f64,
@@ -182,7 +192,7 @@ impl Engine {
     }
 
     fn quiescence(
-        &self,
+        &mut self,
         game: &Game,
         mut alpha: f64,
         beta: f64,
@@ -200,9 +210,10 @@ impl Engine {
             return Ok((0.0, 0));
         }
 
+        let in_check = game.current_position().checkers().0 != 0;
         let evaluation = 0.95 * self.heuristic.evaluate_position(game);
 
-        if evaluation >= beta {
+        if !in_check && evaluation >= beta {
             return Ok((beta, 0));
         }
 
@@ -214,25 +225,32 @@ impl Engine {
             > 8;
         let piece_value = PieceValue::default();
 
-        if use_delta_pruning && evaluation < alpha - piece_value.queen_value {
+        if !in_check && use_delta_pruning && evaluation + piece_value.queen_value < alpha {
             return Ok((alpha, 0));
         }
 
-        if evaluation > alpha {
+        if !in_check && evaluation > alpha {
             alpha = evaluation;
         }
 
         let mut nodes_searched: usize = 0;
-        for (chess_move, is_capture, is_en_passant) in self.get_captures_and_checks(&game) {
-            if use_delta_pruning && is_en_passant && (evaluation + piece_value.pawn_value < alpha) {
+        for (chess_move, is_capture, is_en_passant) in self.get_quiescence_moves(game, in_check) {
+            if !in_check
+                && use_delta_pruning
+                && is_en_passant
+                && (evaluation + piece_value.pawn_value < alpha)
+            {
                 continue;
             } else if use_delta_pruning
+                && !in_check
                 && is_capture
-                && (piece_value.get_piece_value(
-                    game.current_position()
-                        .piece_on(chess_move.get_dest())
-                        .unwrap(),
-                ) + piece_value.pawn_value
+                && (evaluation
+                    + piece_value.get_piece_value(
+                        game.current_position()
+                            .piece_on(chess_move.get_dest())
+                            .unwrap(),
+                    )
+                    + piece_value.pawn_value
                     < alpha)
             {
                 continue;
@@ -263,16 +281,33 @@ impl Engine {
         Ok((alpha, nodes_searched))
     }
 
-    fn get_captures_and_checks(&self, game: &Game) -> Vec<(ChessMove, bool, bool)> {
+    fn get_quiescence_moves(&self, game: &Game, in_check: bool) -> Vec<(ChessMove, bool, bool)> {
         let mut captures_and_checks: Vec<(ChessMove, bool, bool)> = vec![];
         let legal_moves = MoveGen::new_legal(&game.current_position()).collect();
-        let ordered_moves = self.order_moves(&game.current_position(), legal_moves);
         let board = game.current_position();
+
+        if in_check {
+            return self
+                .order_moves(&board, legal_moves)
+                .into_iter()
+                .map(|chess_move| {
+                    let en_passant_capture = board.piece_on(chess_move.get_source()).unwrap()
+                        == Piece::Pawn
+                        && (chess_move.get_source().get_rank() != chess_move.get_dest().get_rank())
+                        && (chess_move.get_source().get_file() != chess_move.get_dest().get_file());
+                    let captured_piece =
+                        board.piece_on(chess_move.get_dest()).is_some() || en_passant_capture;
+                    (chess_move, captured_piece, en_passant_capture)
+                })
+                .collect();
+        }
+
+        let ordered_moves = self.order_moves(&board, legal_moves);
 
         for chess_move in ordered_moves {
             let board_after_move = board.make_move_new(chess_move);
 
-            let captured_piece = board.piece_on(chess_move.get_dest()) != None;
+            let captured_piece = board.piece_on(chess_move.get_dest()).is_some();
             let is_check = board_after_move.checkers().collect::<Vec<Square>>().len() != 0;
 
             let en_passant_capture = board.piece_on(chess_move.get_source()).unwrap()
@@ -306,20 +341,24 @@ impl Engine {
                 self.time_for_move = move_time as f64;
             }
             (Color::White, _, white_time, 0, _, _) if white_time > 0 => {
-                self.time_for_move = 0.05 * (white_time as f64 - search_options.move_overhead);
+                self.time_for_move =
+                    (0.05 * (white_time as f64 - search_options.move_overhead)).max(0.0);
             }
             (Color::White, _, white_time, white_increment, _, _) if white_time > 0 => {
                 self.time_for_move = (0.1 * white_time as f64 + white_increment as f64
                     - search_options.move_overhead)
-                    .min(white_time as f64 - search_options.move_overhead);
+                    .min(white_time as f64 - search_options.move_overhead)
+                    .max(0.0);
             }
             (Color::Black, _, _, _, black_time, 0) if black_time > 0 => {
-                self.time_for_move = 0.05 * (black_time as f64 - search_options.move_overhead);
+                self.time_for_move =
+                    (0.05 * (black_time as f64 - search_options.move_overhead)).max(0.0);
             }
             (Color::Black, _, _, _, black_time, black_increment) if black_time > 0 => {
                 self.time_for_move = (0.1 * black_time as f64 + black_increment as f64
                     - search_options.move_overhead)
-                    .min(black_time as f64 - search_options.move_overhead);
+                    .min(black_time as f64 - search_options.move_overhead)
+                    .max(0.0);
             }
             _ => panic!("Incorrect time options."),
         }
@@ -335,11 +374,17 @@ impl Engine {
             let to = mv.get_dest();
             let attacker = board.piece_on(from);
             let victim = board.piece_on(to);
+            let is_en_passant = attacker == Some(Piece::Pawn)
+                && from.get_rank() != to.get_rank()
+                && from.get_file() != to.get_file()
+                && victim.is_none();
 
             // MVV-LVA scoring
             if let (Some(att), Some(vic)) = (attacker, victim) {
                 score += 10 * piece_value.get_piece_value(vic) as i32
                     - piece_value.get_piece_value(att) as i32;
+            } else if is_en_passant {
+                score += 9 * piece_value.pawn_value as i32;
             }
 
             // Promotion bonus
