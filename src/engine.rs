@@ -27,7 +27,10 @@ impl Engine {
 
     pub fn start(&mut self) {
         loop {
-            let command = self.receiver.recv().unwrap();
+            let command = match self.receiver.recv() {
+                Ok(command) => command,
+                Err(_) => break,
+            };
 
             if command.quit {
                 break;
@@ -47,6 +50,15 @@ impl Engine {
     fn initialize_heuristic(&mut self, search_options: &SearchOptions) {
         self.heuristic.fifty_moves_rule = search_options.fifty_moves_rule;
         self.heuristic.syzygy_path = search_options.syzygy_path.clone();
+        if let Err(message) = self.heuristic.configure(
+            search_options.heuristic_type,
+            search_options.model_file.clone(),
+            search_options.threads,
+        ) {
+            println!("info string {message}");
+            println!("info string Falling back to classical heuristic.");
+            self.heuristic.use_classical();
+        }
     }
 
     fn check_stop(&self) -> bool {

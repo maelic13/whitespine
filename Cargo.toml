@@ -8,3 +8,5 @@ edition = "2024"
 
 [dependencies]
 chess = "3.2.0"
+tract-onnx = "0.21.15"
+tract-linalg = { version = "0.21.15", features = ["multithread-mm"] }

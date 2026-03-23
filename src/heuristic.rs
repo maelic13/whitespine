@@ -2,12 +2,17 @@ use std::path::PathBuf;
 
 use chess::{Color, Game, GameResult, Piece, Square};
 
+use crate::heuristic_type::HeuristicType;
+use crate::neural_network::{NeuralNetworkConfig, NeuralNetworkEvaluator};
 use crate::piece_value::PieceValue;
 
-#[derive(Debug, Clone)]
 pub struct Heuristic {
     pub fifty_moves_rule: bool,
     pub syzygy_path: Option<PathBuf>,
+
+    heuristic_type: HeuristicType,
+    neural_network: Option<NeuralNetworkEvaluator>,
+    neural_network_config: Option<NeuralNetworkConfig>,
 
     draw_value: f64,
     loss_value: f64,
@@ -40,6 +45,10 @@ impl Heuristic {
             fifty_moves_rule: true,
             syzygy_path: None,
 
+            heuristic_type: HeuristicType::Classical,
+            neural_network: None,
+            neural_network_config: None,
+
             draw_value: 0.,       // [cp]
             loss_value: -120_00., // [cp]
             win_value: 120_00.,   // [cp]
@@ -66,6 +75,53 @@ impl Heuristic {
         }
     }
 
+    pub fn configure(
+        &mut self,
+        heuristic_type: HeuristicType,
+        model_file: Option<PathBuf>,
+        threads: usize,
+    ) -> Result<(), String> {
+        match heuristic_type {
+            HeuristicType::Classical => {
+                self.use_classical();
+                Ok(())
+            }
+            HeuristicType::NeuralNetwork => {
+                let Some(model_file) = model_file else {
+                    self.use_classical();
+                    return Err(String::from(
+                        "No neural network model file is configured for heuristic evaluation.",
+                    ));
+                };
+
+                let config = NeuralNetworkConfig {
+                    model_file,
+                    threads: threads.max(1),
+                };
+
+                if self.neural_network_config.as_ref() == Some(&config)
+                    && self.neural_network.is_some()
+                {
+                    self.heuristic_type = HeuristicType::NeuralNetwork;
+                    return Ok(());
+                }
+
+                let evaluator =
+                    NeuralNetworkEvaluator::new(&config.model_file, config.threads)?;
+                self.heuristic_type = HeuristicType::NeuralNetwork;
+                self.neural_network_config = Some(config);
+                self.neural_network = Some(evaluator);
+                Ok(())
+            }
+        }
+    }
+
+    pub fn use_classical(&mut self) {
+        self.heuristic_type = HeuristicType::Classical;
+        self.neural_network = None;
+        self.neural_network_config = None;
+    }
+
     pub fn evaluate_result(&self, result: GameResult, color: Color) -> f64 {
         /* Evaluate game result and return value in centi-pawns. */
         match (result, color) {
@@ -86,6 +142,18 @@ impl Heuristic {
     }
 
     pub fn evaluate_position(&self, game: &Game) -> f64 {
+        if self.heuristic_type == HeuristicType::NeuralNetwork {
+            if let Some(neural_network) = self.neural_network.as_ref() {
+                if let Ok(evaluation) = neural_network.evaluate_board(&game.current_position()) {
+                    return evaluation as f64;
+                }
+            }
+        }
+
+        self.classical_evaluate_position(game)
+    }
+
+    fn classical_evaluate_position(&self, game: &Game) -> f64 {
         /* Evaluate board and return value in centi-pawns. */
         // TODO: syzygy tablebase evaluation
 
