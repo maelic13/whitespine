@@ -1,4 +1,4 @@
-name: Build & Attach Executables
+name: Build And Attach Executables
 
 on:
   release:
@@ -9,41 +9,33 @@ permissions:
 
 jobs:
   build:
-    runs-on: ${{ matrix.os }}
+    name: Build ${{ matrix.os_name }} ${{ matrix.arch }}
+    runs-on: ${{ matrix.runner }}
     strategy:
+      fail-fast: false
       matrix:
         include:
-          # Linux
-          - os: ubuntu-latest
+          - runner: ubuntu-latest
             os_name: linux
             arch: x64
             target: x86_64-unknown-linux-gnu
             ext: ""
-          - os: ubuntu-24.04-arm
+          - runner: ubuntu-24.04-arm
             os_name: linux
             arch: arm64
             target: aarch64-unknown-linux-gnu
             ext: ""
-
-          # Windows
-          - os: windows-latest
+          - runner: windows-latest
             os_name: windows
             arch: x64
             target: x86_64-pc-windows-msvc
             ext: ".exe"
-          - os: windows-11-arm
+          - runner: windows-11-arm
             os_name: windows
             arch: arm64
             target: aarch64-pc-windows-msvc
             ext: ".exe"
-
-          # macOS
-          - os: macos-13
-            os_name: macos
-            arch: x64
-            target: x86_64-apple-darwin
-            ext: ""
-          - os: macos-latest
+          - runner: macos-latest
             os_name: macos
             arch: arm64
             target: aarch64-apple-darwin
@@ -51,7 +43,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -62,22 +54,25 @@ jobs:
         run: rustup target add ${{ matrix.target }}
 
       - name: Build release binary
+        env:
+          WHITESPINE_RELEASE: "1"
         run: cargo build --release --target=${{ matrix.target }}
 
       - name: Prepare asset name
         id: prepare-asset
         shell: bash
         run: |
-          ASSET_NAME="whitespine-${{ github.event.release.tag_name }}-${{ matrix.os_name }}-${{ matrix.arch }}${{ matrix.ext }}"
-          echo "asset_name=${ASSET_NAME}" >> "$GITHUB_OUTPUT"
+          asset_name="whitespine-${{ github.event.release.tag_name }}-${{ matrix.os_name }}-${{ matrix.arch }}${{ matrix.ext }}"
+          echo "asset_name=${asset_name}" >> "$GITHUB_OUTPUT"
 
       - name: Copy and rename binary
         shell: bash
         run: |
           cp "target/${{ matrix.target }}/release/whitespine${{ matrix.ext }}" "${{ steps.prepare-asset.outputs.asset_name }}"
 
-      - name: Upload binary to GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          files: ${{ steps.prepare-asset.outputs.asset_name }}
-          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Upload binary to GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >
+          gh release upload "${{ github.event.release.tag_name }}"
+          "${{ steps.prepare-asset.outputs.asset_name }}" --clobber
