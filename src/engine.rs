@@ -15,6 +15,17 @@ pub struct Engine {
     time_for_move: f64,
 }
 
+enum SearchControl {
+    Stop,
+    Quit,
+}
+
+impl SearchControl {
+    fn should_quit(&self) -> bool {
+        matches!(self, SearchControl::Quit)
+    }
+}
+
 impl Engine {
     pub fn new(receiver: Receiver<EngineCommand>) -> Engine {
         Engine {
@@ -27,7 +38,13 @@ impl Engine {
 
     pub fn start(&mut self) {
         loop {
-            let command = self.receiver.recv().unwrap();
+            let command = match self.receiver.recv() {
+                Ok(command) => command,
+                Err(_) => {
+                    println!("info string Command channel closed.");
+                    break;
+                }
+            };
 
             if command.quit {
                 break;
@@ -36,36 +53,49 @@ impl Engine {
             }
 
             self.start_timer(&command.search_options);
-            self.search(
-                &command.search_options.chess_game,
-                command.search_options.depth,
-            );
+            if self
+                .search(
+                    &command.search_options.chess_game,
+                    command.search_options.depth,
+                )
+                .should_quit()
+            {
+                break;
+            }
         }
     }
 
-    fn check_stop(&self) -> bool {
-        let command = self.receiver.try_recv().unwrap_or(EngineCommand::default());
-        command.stop
-            || command.quit
-            || self.timer.unwrap().elapsed().as_millis() as f64 > self.time_for_move
+    fn check_stop(&self) -> Result<(), SearchControl> {
+        match self.receiver.try_recv() {
+            Ok(command) if command.quit => Err(SearchControl::Quit),
+            Ok(command) if command.stop => Err(SearchControl::Stop),
+            _ if self.timer.unwrap().elapsed().as_millis() as f64 > self.time_for_move => {
+                Err(SearchControl::Stop)
+            }
+            _ => Ok(()),
+        }
     }
 
-    fn search(&mut self, game: &Game, depth_limit: f64) {
+    fn search(&mut self, game: &Game, depth_limit: f64) -> SearchControl {
         let start = Instant::now();
 
+        if game.result().is_some() || game.can_declare_draw() {
+            println!("bestmove 0000");
+            return SearchControl::Stop;
+        }
+
         // start with random move choice, to be used in case of timeout before first depth is reached
-        let move_gen = MoveGen::new_legal(&game.current_position());
-        let possible_moves: Vec<_> = move_gen.collect();
-        let mut moves: Vec<ChessMove> = vec![
-            possible_moves
-                .get((start.elapsed().as_nanos() / 100) as usize % possible_moves.len())
-                .unwrap()
-                .to_owned(),
-        ];
+        let possible_moves: Vec<ChessMove> = MoveGen::new_legal(&game.current_position()).collect();
+        let mut moves: Vec<ChessMove> = if possible_moves.is_empty() {
+            Vec::new()
+        } else {
+            vec![possible_moves[(start.elapsed().as_nanos() / 100) as usize % possible_moves.len()]]
+        };
 
         let mut depth: f64 = 0.;
         let mut evaluation: f64;
         let mut nodes_searched: usize = 0;
+        let mut control = SearchControl::Stop;
 
         while depth < depth_limit {
             depth += 1.;
@@ -77,7 +107,8 @@ impl Engine {
                     nodes_searched += nodes;
                     moves = pv;
                 }
-                Err(_) => {
+                Err(stop_reason) => {
+                    control = stop_reason;
                     break;
                 }
             }
@@ -98,19 +129,24 @@ impl Engine {
             )
         }
 
-        println!("bestmove {}", &moves[0].to_string());
+        println!(
+            "bestmove {}",
+            moves
+                .first()
+                .map(|chess_move| chess_move.to_string())
+                .unwrap_or_else(|| String::from("0000"))
+        );
+        control
     }
 
     fn negamax(
-        &self,
+        &mut self,
         game: &Game,
         depth: f64,
         mut alpha: f64,
         beta: f64,
-    ) -> Result<(f64, Vec<ChessMove>, usize), &'static str> {
-        if self.check_stop() {
-            return Err("Calculation stopped.");
-        }
+    ) -> Result<(f64, Vec<ChessMove>, usize), SearchControl> {
+        self.check_stop()?;
 
         let mut nodes_searched: usize = 1;
 
@@ -134,7 +170,7 @@ impl Engine {
                     evaluation = eval;
                     nodes_searched += nodes;
                 }
-                Err(message) => return Err(message),
+                Err(control) => return Err(control),
             }
             return Ok((evaluation, vec![], nodes_searched));
         }
@@ -157,7 +193,7 @@ impl Engine {
                     nodes_searched += nodes;
                     moves = pv;
                 }
-                Err(message) => return Err(message),
+                Err(control) => return Err(control),
             }
 
             evaluation *= -1.;
@@ -176,14 +212,12 @@ impl Engine {
     }
 
     fn quiescence(
-        &self,
+        &mut self,
         game: &Game,
         mut alpha: f64,
         beta: f64,
-    ) -> Result<(f64, usize), &'static str> {
-        if self.check_stop() {
-            return Err("Calculation stopped.");
-        }
+    ) -> Result<(f64, usize), SearchControl> {
+        self.check_stop()?;
 
         if game.result().is_some() {
             let result = game.result().unwrap();
@@ -243,7 +277,7 @@ impl Engine {
                     score = -eval;
                     nodes_searched += nodes;
                 }
-                Err(message) => return Err(message),
+                Err(control) => return Err(control),
             }
 
             if score >= beta {

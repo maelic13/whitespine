@@ -23,7 +23,8 @@ fn main() {
 
     let (tx, rx) = channel();
     let mut engine = Engine::new(rx);
-    thread::spawn(move || engine.start());
+    let engine_thread = thread::spawn(move || engine.start());
 
     UciProtocol::new(tx).uci_loop();
+    engine_thread.join().expect("Engine thread failed.");
 }

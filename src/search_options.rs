@@ -47,9 +47,18 @@ impl SearchOptions {
     }
 
     pub fn set_position(&mut self, args: &[String]) {
+        if args.is_empty() {
+            println!("info string Invalid position command.");
+            return;
+        }
+
         let mut board = Board::default();
 
         if args[0] == "fen" {
+            if args.len() < 2 {
+                println!("info string Invalid FEN.");
+                return;
+            }
             let mut fen = args[1].to_string();
             for partial in args[2..].as_ref() {
                 if partial == "moves" {
@@ -58,7 +67,13 @@ impl SearchOptions {
                 fen += &*String::from(" ");
                 fen += partial;
             }
-            board = Board::from_str(fen.as_str()).expect("Board could not be created from fen.");
+            board = match Board::from_str(fen.as_str()) {
+                Ok(board) => board,
+                Err(_) => {
+                    println!("info string Invalid FEN.");
+                    return;
+                }
+            };
         }
 
         let moves_start_index = args
@@ -70,7 +85,17 @@ impl SearchOptions {
 
         let mut game = Game::new_with_board(board);
         for chess_move in played_moves {
-            game.make_move(ChessMove::from_str(chess_move.as_str()).expect("Invalid move string."));
+            let parsed_move = match ChessMove::from_str(chess_move.as_str()) {
+                Ok(parsed_move) => parsed_move,
+                Err(_) => {
+                    println!("info string Invalid move: {}", chess_move);
+                    return;
+                }
+            };
+            if !game.make_move(parsed_move) {
+                println!("info string Illegal move: {}", chess_move);
+                return;
+            }
         }
 
         self.chess_game = game;
@@ -97,23 +122,23 @@ impl SearchOptions {
         let depth_index = args.iter().position(|r| r == "depth");
 
         if move_time_index.is_some() {
-            self.move_time = args[move_time_index.unwrap() + 1].parse().unwrap();
+            self.move_time = Self::parse_usize(args, move_time_index.unwrap(), "movetime");
         }
 
         if white_time_index.is_some() {
-            self.white_time = args[white_time_index.unwrap() + 1].parse().unwrap();
+            self.white_time = Self::parse_usize(args, white_time_index.unwrap(), "wtime");
         }
         if white_increment_index.is_some() {
-            self.white_increment = args[white_increment_index.unwrap() + 1].parse().unwrap();
+            self.white_increment = Self::parse_usize(args, white_increment_index.unwrap(), "winc");
         }
         if black_time_index.is_some() {
-            self.black_time = args[black_time_index.unwrap() + 1].parse().unwrap();
+            self.black_time = Self::parse_usize(args, black_time_index.unwrap(), "btime");
         }
         if black_increment_index.is_some() {
-            self.black_increment = args[black_increment_index.unwrap() + 1].parse().unwrap();
+            self.black_increment = Self::parse_usize(args, black_increment_index.unwrap(), "binc");
         }
         if depth_index.is_some() {
-            self.depth = args[depth_index.unwrap() + 1].parse().unwrap();
+            self.depth = Self::parse_f64(args, depth_index.unwrap(), "depth");
         }
     }
 
@@ -132,12 +157,41 @@ impl SearchOptions {
         let value = &args[value_index.unwrap() + 1..].join(" ").to_lowercase();
 
         match option_name {
-            "move overhead" => self.move_overhead = value.parse::<f64>().unwrap(),
+            "move overhead" => {
+                if let Ok(move_overhead) = value.parse::<f64>() {
+                    self.move_overhead = move_overhead;
+                } else {
+                    println!("info string Invalid Move Overhead value.");
+                }
+            }
             "threads" => {
-                let threads = value.parse::<usize>().unwrap();
-                self.threads = threads.clamp(1, 1);
+                if let Ok(threads) = value.parse::<usize>() {
+                    self.threads = threads.clamp(1, 1);
+                } else {
+                    println!("info string Invalid Threads value.");
+                }
             }
             _ => {}
+        }
+    }
+
+    fn parse_usize(args: &[String], index: usize, name: &str) -> usize {
+        match args.get(index + 1).and_then(|value| value.parse().ok()) {
+            Some(value) => value,
+            None => {
+                println!("info string Invalid {} value.", name);
+                0
+            }
+        }
+    }
+
+    fn parse_f64(args: &[String], index: usize, name: &str) -> f64 {
+        match args.get(index + 1).and_then(|value| value.parse().ok()) {
+            Some(value) => value,
+            None => {
+                println!("info string Invalid {} value.", name);
+                2.
+            }
         }
     }
 
