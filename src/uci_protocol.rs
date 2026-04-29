@@ -21,9 +21,13 @@ impl UciProtocol {
     pub fn uci_loop(&mut self) {
         loop {
             let mut input = String::new();
-            io::stdin()
+            let bytes_read = io::stdin()
                 .read_line(&mut input)
                 .expect("error: unable to read user input");
+            if bytes_read == 0 {
+                self.quit();
+                break;
+            }
             let input: Vec<String> = input.split_whitespace().map(str::to_string).collect();
             if input.is_empty() {
                 continue;

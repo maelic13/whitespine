@@ -1,4 +1,4 @@
-use chess::{Color, Game, GameResult, Piece, Square};
+use chess::{BitBoard, Color, Game, GameResult, Piece, Square};
 
 use crate::piece_value::PieceValue;
 
@@ -86,6 +86,8 @@ impl Heuristic {
         let rooks = board.pieces(Piece::Rook);
         let queens = board.pieces(Piece::Queen);
         let kings = board.pieces(Piece::King);
+        let white_queens = queens & board.color_combined(Color::White);
+        let black_queens = queens & board.color_combined(Color::Black);
 
         let mut player_value: f64 = 0.;
         let mut opponent_value: f64 = 0.;
@@ -150,17 +152,21 @@ impl Heuristic {
         }
 
         for square in kings.into_iter() {
-            if board.color_on(square).unwrap() == board.side_to_move() {
+            let king_color = board.color_on(square).unwrap();
+            let opponent_has_no_queens =
+                Heuristic::opponent_has_no_queens(king_color, white_queens, black_queens);
+
+            if king_color == board.side_to_move() {
                 player_value += self.king_bonus(
                     square,
                     board.king_square(!board.side_to_move()),
-                    queens.count() == 0,
+                    opponent_has_no_queens,
                 )
             } else {
                 opponent_value += self.king_bonus(
                     square,
                     board.king_square(board.side_to_move()),
-                    queens.count() == 0,
+                    opponent_has_no_queens,
                 )
             }
         }
@@ -263,13 +269,24 @@ impl Heuristic {
         q_bonus
     }
 
-    fn king_bonus(&self, king: Square, opponent_king: Square, no_queens: bool) -> f64 {
+    fn opponent_has_no_queens(
+        color: Color,
+        white_queens: BitBoard,
+        black_queens: BitBoard,
+    ) -> bool {
+        match color {
+            Color::White => black_queens.count() == 0,
+            Color::Black => white_queens.count() == 0,
+        }
+    }
+
+    fn king_bonus(&self, king: Square, opponent_king: Square, opponent_has_no_queens: bool) -> f64 {
         /* Evaluation bonus for positions of king on board. */
         let king_center_weight: f64;
-        if no_queens {
+        if opponent_has_no_queens {
             king_center_weight = self.king_center_weight;
         } else {
-            king_center_weight = -self.knight_center_weight;
+            king_center_weight = -self.king_center_weight;
         }
 
         // occupying center bonus
@@ -290,12 +307,12 @@ impl Heuristic {
             return 3. * bonus;
         }
         if (2usize..6usize).contains(&piece.get_rank().to_index())
-            && (3usize..5usize).contains(&piece.get_file().to_index())
+            && (2usize..6usize).contains(&piece.get_file().to_index())
         {
             return 2. * bonus;
         }
         if (1usize..7usize).contains(&piece.get_rank().to_index())
-            && (3usize..5usize).contains(&piece.get_file().to_index())
+            && (1usize..7usize).contains(&piece.get_file().to_index())
         {
             return bonus;
         }

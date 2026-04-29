@@ -146,7 +146,10 @@ impl SearchOptions {
         let name_index = args.iter().position(|r| r == "name");
         let value_index = args.iter().position(|r| r == "value");
 
-        if !name_index.is_some() || !value_index.is_some() {
+        if !name_index.is_some()
+            || !value_index.is_some()
+            || name_index.unwrap() >= value_index.unwrap()
+        {
             println!("Invalid setoption command.");
             return;
         }
@@ -158,7 +161,10 @@ impl SearchOptions {
 
         match option_name {
             "move overhead" => {
-                if let Ok(move_overhead) = value.parse::<f64>() {
+                if let Ok(move_overhead) = value.parse::<f64>()
+                    && move_overhead.is_finite()
+                    && (0.0..=5000.0).contains(&move_overhead)
+                {
                     self.move_overhead = move_overhead;
                 } else {
                     println!("info string Invalid Move Overhead value.");

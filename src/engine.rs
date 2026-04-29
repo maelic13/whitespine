@@ -256,11 +256,13 @@ impl Engine {
                 continue;
             } else if use_delta_pruning
                 && is_capture
-                && (piece_value.get_piece_value(
-                    game.current_position()
-                        .piece_on(chess_move.get_dest())
-                        .unwrap(),
-                ) + piece_value.pawn_value
+                && (evaluation
+                    + piece_value.get_piece_value(
+                        game.current_position()
+                            .piece_on(chess_move.get_dest())
+                            .unwrap(),
+                    )
+                    + piece_value.pawn_value
                     < alpha)
             {
                 continue;
@@ -349,7 +351,7 @@ impl Engine {
                     - search_options.move_overhead)
                     .min(black_time as f64 - search_options.move_overhead);
             }
-            _ => panic!("Incorrect time options."),
+            _ => return,
         }
     }
 
