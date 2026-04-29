@@ -54,8 +54,6 @@ jobs:
         run: rustup target add ${{ matrix.target }}
 
       - name: Build release binary
-        env:
-          WHITESPINE_RELEASE: "1"
         run: cargo build --release --target=${{ matrix.target }}
 
       - name: Prepare asset name

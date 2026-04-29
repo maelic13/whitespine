@@ -35,18 +35,12 @@ impl Engine {
                 continue;
             }
 
-            self.initialize_heuristic(&command.search_options);
             self.start_timer(&command.search_options);
             self.search(
                 &command.search_options.chess_game,
-                command.search_options.search_depth(),
+                command.search_options.depth,
             );
         }
-    }
-
-    fn initialize_heuristic(&mut self, search_options: &SearchOptions) {
-        self.heuristic.fifty_moves_rule = search_options.fifty_moves_rule;
-        self.heuristic.syzygy_path = search_options.syzygy_path.clone();
     }
 
     fn check_stop(&self) -> bool {
@@ -56,7 +50,7 @@ impl Engine {
             || self.timer.unwrap().elapsed().as_millis() as f64 > self.time_for_move
     }
 
-    fn search(&mut self, game: &Game, max_depth: f64) {
+    fn search(&mut self, game: &Game, depth_limit: f64) {
         let start = Instant::now();
 
         // start with random move choice, to be used in case of timeout before first depth is reached
@@ -73,7 +67,7 @@ impl Engine {
         let mut evaluation: f64;
         let mut nodes_searched: usize = 0;
 
-        while depth < max_depth {
+        while depth < depth_limit {
             depth += 1.;
 
             let result = self.negamax(&game, depth, f64::NEG_INFINITY, f64::INFINITY);

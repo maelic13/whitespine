@@ -1,14 +1,9 @@
-use std::path::PathBuf;
-
 use chess::{Color, Game, GameResult, Piece, Square};
 
 use crate::piece_value::PieceValue;
 
 #[derive(Debug, Clone)]
 pub struct Heuristic {
-    pub fifty_moves_rule: bool,
-    pub syzygy_path: Option<PathBuf>,
-
     draw_value: f64,
     loss_value: f64,
     win_value: f64,
@@ -37,9 +32,6 @@ pub struct Heuristic {
 impl Heuristic {
     pub fn default() -> Heuristic {
         Heuristic {
-            fifty_moves_rule: true,
-            syzygy_path: None,
-
             draw_value: 0.,       // [cp]
             loss_value: -120_00., // [cp]
             win_value: 120_00.,   // [cp]
@@ -87,8 +79,6 @@ impl Heuristic {
 
     pub fn evaluate_position(&self, game: &Game) -> f64 {
         /* Evaluate board and return value in centi-pawns. */
-        // TODO: syzygy tablebase evaluation
-
         let board = game.current_position();
         let pawns = board.pieces(Piece::Pawn);
         let knights = board.pieces(Piece::Knight);

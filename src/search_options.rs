@@ -1,4 +1,3 @@
-use std::path::PathBuf;
 use std::str::FromStr;
 
 use chess::{Board, ChessMove, Game};
@@ -14,10 +13,8 @@ pub struct SearchOptions {
     pub black_increment: usize,
     pub depth: f64,
 
-    pub fifty_moves_rule: bool,
-    pub max_depth: f64,
     pub move_overhead: f64,
-    pub syzygy_path: Option<PathBuf>,
+    pub threads: usize,
 }
 
 impl SearchOptions {
@@ -32,19 +29,15 @@ impl SearchOptions {
             black_increment: 0,
             depth: f64::INFINITY,
 
-            fifty_moves_rule: true,
-            max_depth: f64::INFINITY,
             move_overhead: 10.,
-            syzygy_path: None,
+            threads: 1,
         }
     }
 
     pub fn get_uci_options() -> Vec<String> {
         Vec::from([
-            String::from("option name MaxDepth type spin default -1 min -1 max 99"),
             String::from("option name Move Overhead type spin default 10 min 0 max 5000"),
-            String::from("option name Syzygy50MoveRule type check default true"),
-            String::from("option name SyzygyPath type string default <empty>"),
+            String::from("option name Threads type spin default 1 min 1 max 1"),
         ])
     }
 
@@ -139,28 +132,13 @@ impl SearchOptions {
         let value = &args[value_index.unwrap() + 1..].join(" ").to_lowercase();
 
         match option_name {
-            "maxdepth" => {
-                let depth = value.parse::<f64>().unwrap();
-                if depth == -1. {
-                    self.max_depth = f64::INFINITY;
-                } else {
-                    self.max_depth = depth;
-                }
-            }
             "move overhead" => self.move_overhead = value.parse::<f64>().unwrap(),
-            "syzygy50moverule" => self.fifty_moves_rule = value == "true",
-            "syzygypath" => {
-                let path = PathBuf::from(value);
-                self.syzygy_path = if path.exists() { Some(path) } else { None };
+            "threads" => {
+                let threads = value.parse::<usize>().unwrap();
+                self.threads = threads.clamp(1, 1);
             }
             _ => {}
         }
-    }
-
-    pub fn search_depth(&self) -> f64 {
-        return [self.max_depth, self.depth]
-            .iter()
-            .fold(f64::INFINITY, |a, &b| a.min(b));
     }
 
     fn reset_temporary_parameters(&mut self) {
