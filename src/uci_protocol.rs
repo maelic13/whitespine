@@ -43,6 +43,7 @@ impl UciProtocol {
                 "setoption" => self.set_option(args),
                 "ucinewgame" => self.new_game(),
                 "position" => self.position(args),
+                "bench" => self.bench(args),
                 "quit" => {
                     self.quit();
                     break;
@@ -98,5 +99,14 @@ impl UciProtocol {
 
     fn position(&mut self, args: &[String]) {
         self.search_options.set_position(args);
+    }
+
+    fn bench(&self, args: &[String]) {
+        let depth: u32 = args.first()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(13);
+        self.sender
+            .send(EngineCommand::bench(depth))
+            .expect("Bench command could not be sent.");
     }
 }

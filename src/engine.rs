@@ -1,38 +1,44 @@
 use std::sync::mpsc::Receiver;
-use std::time::Instant;
 
-use chess::{Board, ChessMove, Color, Game, MoveGen, Piece, Square};
-
+use crate::board::board::Board;
 use crate::engine_command::EngineCommand;
-use crate::heuristic::Heuristic;
-use crate::piece_value::PieceValue;
+use crate::search::{SearchInfo, Searcher};
 use crate::search_options::SearchOptions;
+use crate::tt::{MATE_SCORE, MAX_PLY, TranspositionTable};
+
+const BENCH_FENS: &[&str] = &[
+    "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+    "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1",
+    "8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1",
+    "r4rk1/1pp1qppp/p1np1n2/2b1p1B1/2B1P1b1/p1NP1N2/1PP1QPPP/R4RK1 w - - 0 10",
+    "r2q1rk1/pP1p2pp/Q4n2/bbp1p3/Np6/1B3NBn/pPPP1PPP/R3K2R b KQ - 0 1",
+    "8/pp2k3/8/2p5/2P5/1P2K3/P7/8 w - - 0 1",
+    "r1bq1r2/pp2n3/4N2k/3pPppP/1b1n2Q1/2N5/PP3PP1/R1B1K2R w KQ g6 0 20",
+    "r4rk1/pp1n1pp1/2p1pn1p/q7/3P4/2NB4/PP3PPP/R2QR1K1 w - - 0 1",
+    "5k2/5p1p/p3B1p1/Pp6/1P6/5P1P/4K1P1/8 b - - 0 1",
+    "6k1/p3q2p/1nr3p1/8/3Q4/7P/PP4P1/4R1K1 b - - 0 1",
+    "2r3k1/1q2Rp1p/p2p2p1/1p1P4/1Pp1P3/2Q5/1P4PP/6K1 w - - 0 1",
+    "1r3rk1/p4ppp/2p5/3Nb3/1p1bP3/1B4P1/PP3P1P/R2R2K1 b - - 0 1",
+    "r2qr1k1/p4ppp/1pn1bn2/2b1p3/4P3/1BN1BN2/PPP2PPP/R2QR1K1 b - - 6 10",
+    "r1bqkb1r/pp1p1ppp/2n1pn2/2p5/4P3/2NP1N2/PPP2PPP/R1BQKB1R w KQkq - 0 5",
+    "8/8/p1p5/1p5p/1P5P/P1P5/8/K1k5 w - - 0 1",
+    "1k6/1b6/8/5p2/p1p2p2/P7/1P3P2/K7 b - - 0 1",
+];
 
 pub struct Engine {
-    heuristic: Heuristic,
     receiver: Receiver<EngineCommand>,
-    timer: Option<Instant>,
-    time_for_move: f64,
-}
-
-enum SearchControl {
-    Stop,
-    Quit,
-}
-
-impl SearchControl {
-    fn should_quit(&self) -> bool {
-        matches!(self, SearchControl::Quit)
-    }
+    searcher: Searcher,
+    tt: TranspositionTable,
+    hash_mb: usize,
 }
 
 impl Engine {
-    pub fn new(receiver: Receiver<EngineCommand>) -> Engine {
-        Engine {
-            heuristic: Heuristic::default(),
+    pub fn new(receiver: Receiver<EngineCommand>) -> Self {
+        Self {
             receiver,
-            timer: None,
-            time_for_move: f64::INFINITY,
+            searcher: Searcher::new(),
+            tt: TranspositionTable::new(64),
+            hash_mb: 64,
         }
     }
 
@@ -40,353 +46,197 @@ impl Engine {
         loop {
             let command = match self.receiver.recv() {
                 Ok(command) => command,
-                Err(_) => {
-                    println!("info string Command channel closed.");
-                    break;
-                }
+                Err(_) => break,
             };
 
             if command.quit {
                 break;
-            } else if command.stop {
+            }
+            if command.stop {
                 continue;
             }
-
-            self.start_timer(&command.search_options);
-            if self
-                .search(
-                    &command.search_options.chess_game,
-                    command.search_options.depth,
-                )
-                .should_quit()
-            {
+            if command.bench {
+                self.run_bench(command.bench_depth.max(1));
+                continue;
+            }
+            if self.go(&command.search_options) {
                 break;
             }
         }
     }
 
-    fn check_stop(&self) -> Result<(), SearchControl> {
-        match self.receiver.try_recv() {
-            Ok(command) if command.quit => Err(SearchControl::Quit),
-            Ok(command) if command.stop => Err(SearchControl::Stop),
-            _ if self.timer.unwrap().elapsed().as_millis() as f64 > self.time_for_move => {
-                Err(SearchControl::Stop)
-            }
-            _ => Ok(()),
-        }
-    }
-
-    fn search(&mut self, game: &Game, depth_limit: f64) -> SearchControl {
-        let start = Instant::now();
-
-        if game.result().is_some() || game.can_declare_draw() {
-            println!("bestmove 0000");
-            return SearchControl::Stop;
+    fn go(&mut self, options: &SearchOptions) -> bool {
+        if options.hash_mb != self.hash_mb {
+            self.tt.resize(options.hash_mb);
+            self.hash_mb = options.hash_mb;
         }
 
-        // start with random move choice, to be used in case of timeout before first depth is reached
-        let possible_moves: Vec<ChessMove> = MoveGen::new_legal(&game.current_position()).collect();
-        let mut moves: Vec<ChessMove> = if possible_moves.is_empty() {
-            Vec::new()
+        let mut board = options.board.clone();
+        let depth_limit = if options.depth == u32::MAX {
+            (MAX_PLY - 1) as u32
         } else {
-            vec![possible_moves[(start.elapsed().as_nanos() / 100) as usize % possible_moves.len()]]
+            options.depth.max(1).min((MAX_PLY - 1) as u32)
         };
+        let (soft_limit, hard_limit) = self.time_limits(options);
 
-        let mut depth: f64 = 0.;
-        let mut evaluation: f64;
-        let mut nodes_searched: usize = 0;
-        let mut control = SearchControl::Stop;
-
-        while depth < depth_limit {
-            depth += 1.;
-
-            let result = self.negamax(&game, depth, f64::NEG_INFINITY, f64::INFINITY);
-            match result {
-                Ok((eval, pv, nodes)) => {
-                    evaluation = eval;
-                    nodes_searched += nodes;
-                    moves = pv;
+        let receiver = &self.receiver;
+        let mut saw_quit = false;
+        let mut saw_stop = false;
+        let result = self.searcher.iterative_deepening(
+            &mut board,
+            &mut self.tt,
+            depth_limit,
+            soft_limit,
+            hard_limit,
+            || {
+                if saw_quit || saw_stop {
+                    return true;
                 }
-                Err(stop_reason) => {
-                    control = stop_reason;
-                    break;
+                match receiver.try_recv() {
+                    Ok(command) if command.quit => {
+                        saw_quit = true;
+                        true
+                    }
+                    Ok(command) if command.stop => {
+                        saw_stop = true;
+                        true
+                    }
+                    _ => false,
                 }
-            }
-
-            let mut string_moves: Vec<String> = vec![];
-            for chess_move in &moves {
-                string_moves.push(chess_move.to_string());
-            }
-
-            println!(
-                "info depth {} score cp {} nodes {} nps {} time {} pv {}",
-                depth,
-                evaluation as isize,
-                nodes_searched,
-                (1_000_000. * nodes_searched as f64 / start.elapsed().as_micros() as f64) as usize,
-                start.elapsed().as_millis(),
-                string_moves.join(" ")
-            )
-        }
-
-        println!(
-            "bestmove {}",
-            moves
-                .first()
-                .map(|chess_move| chess_move.to_string())
-                .unwrap_or_else(|| String::from("0000"))
+            },
+            |info| print_info(info),
         );
-        control
+
+        let best_move = if result.best_move.is_null() {
+            result
+                .pv
+                .first()
+                .copied()
+                .unwrap_or_else(|| first_legal_move(&options.board))
+        } else {
+            result.best_move
+        };
+        println!("bestmove {}", best_move);
+        saw_quit
     }
 
-    fn negamax(
-        &mut self,
-        game: &Game,
-        depth: f64,
-        mut alpha: f64,
-        beta: f64,
-    ) -> Result<(f64, Vec<ChessMove>, usize), SearchControl> {
-        self.check_stop()?;
+    fn run_bench(&mut self, depth: u32) {
+        self.searcher.clear_all();
+        self.tt.clear();
 
-        let mut nodes_searched: usize = 1;
-
-        if game.result().is_some() {
-            let result = game.result().unwrap();
-            let color = game.side_to_move();
-            return Ok((
-                self.heuristic.evaluate_result(result, color),
-                vec![],
-                nodes_searched,
-            ));
-        }
-        if game.can_declare_draw() {
-            return Ok((0.0, vec![], nodes_searched));
-        }
-        if depth == 0. {
-            let evaluation: f64;
-            let result = self.quiescence(game, alpha, beta);
-            match result {
-                Ok((eval, nodes)) => {
-                    evaluation = eval;
-                    nodes_searched += nodes;
+        let mut total_nodes = 0u64;
+        let mut total_time = 0u64;
+        println!();
+        for (index, fen) in BENCH_FENS.iter().enumerate() {
+            let mut board = match Board::from_fen(fen) {
+                Ok(board) => board,
+                Err(_) => {
+                    println!("info string bench: invalid FEN {}", fen);
+                    continue;
                 }
-                Err(control) => return Err(control),
-            }
-            return Ok((evaluation, vec![], nodes_searched));
+            };
+            let result = self.searcher.iterative_deepening(
+                &mut board,
+                &mut self.tt,
+                depth,
+                u64::MAX,
+                u64::MAX,
+                || false,
+                |_| {},
+            );
+
+            let time_ms = result.time_ms.max(1);
+            let nps = result.nodes * 1000 / time_ms;
+            total_nodes += result.nodes;
+            total_time += result.time_ms;
+            println!(
+                "bench {}/{}  depth {}  score {}  nodes {}  time {}ms  nps {}",
+                index + 1,
+                BENCH_FENS.len(),
+                result.depth,
+                format_score(result.score),
+                result.nodes,
+                result.time_ms,
+                nps,
+            );
         }
 
-        let legal_moves = MoveGen::new_legal(&game.current_position()).collect();
-        let ordered_moves = self.order_moves(&game.current_position(), legal_moves);
-        let mut best_moves: Vec<ChessMove> = vec![];
-        let mut moves: Vec<ChessMove>;
-        let mut current_game: Game;
-        let mut evaluation: f64;
-
-        for chess_move in ordered_moves {
-            current_game = game.clone();
-            current_game.make_move(chess_move);
-
-            let result = self.negamax(&current_game, depth - 1., -beta, -alpha);
-            match result {
-                Ok((eval, pv, nodes)) => {
-                    evaluation = eval;
-                    nodes_searched += nodes;
-                    moves = pv;
-                }
-                Err(control) => return Err(control),
-            }
-
-            evaluation *= -1.;
-            moves.insert(0, chess_move);
-
-            if evaluation >= beta {
-                return Ok((beta, vec![], nodes_searched));
-            }
-            if evaluation > alpha {
-                alpha = evaluation;
-                best_moves = moves;
-            }
-        }
-
-        Ok((alpha, best_moves, nodes_searched))
+        let total_nps = if total_time > 0 {
+            total_nodes * 1000 / total_time
+        } else {
+            total_nodes
+        };
+        println!(
+            "
+========================="
+        );
+        println!("Total time (ms) : {}", total_time);
+        println!("Nodes searched  : {}", total_nodes);
+        println!("Nodes/second    : {}", total_nps);
     }
 
-    fn quiescence(
-        &mut self,
-        game: &Game,
-        mut alpha: f64,
-        beta: f64,
-    ) -> Result<(f64, usize), SearchControl> {
-        self.check_stop()?;
-
-        if game.result().is_some() {
-            let result = game.result().unwrap();
-            let color = game.side_to_move();
-            return Ok((0.95 * self.heuristic.evaluate_result(result, color), 0));
-        }
-        if game.can_declare_draw() {
-            return Ok((0.0, 0));
+    fn time_limits(&self, options: &SearchOptions) -> (u64, u64) {
+        if options.move_time > 0 {
+            let move_time = options
+                .move_time
+                .saturating_sub(options.move_overhead)
+                .max(1);
+            return (move_time, move_time);
         }
 
-        let evaluation = 0.95 * self.heuristic.evaluate_position(game);
-
-        if evaluation >= beta {
-            return Ok((beta, 0));
+        let (time, inc) = if options.board.side_to_move as usize == 0 {
+            (options.white_time, options.white_increment)
+        } else {
+            (options.black_time, options.black_increment)
+        };
+        if time == 0 {
+            return (u64::MAX, u64::MAX);
         }
 
-        let use_delta_pruning = game
-            .current_position()
-            .combined()
-            .collect::<Vec<Square>>()
-            .len()
-            > 8;
-        let piece_value = PieceValue::default();
-
-        if use_delta_pruning && evaluation < alpha - piece_value.queen_value {
-            return Ok((alpha, 0));
-        }
-
-        if evaluation > alpha {
-            alpha = evaluation;
-        }
-
-        let mut nodes_searched: usize = 0;
-        for (chess_move, is_capture, is_en_passant) in self.get_captures_and_checks(&game) {
-            if use_delta_pruning && is_en_passant && (evaluation + piece_value.pawn_value < alpha) {
-                continue;
-            } else if use_delta_pruning
-                && is_capture
-                && (evaluation
-                    + piece_value.get_piece_value(
-                        game.current_position()
-                            .piece_on(chess_move.get_dest())
-                            .unwrap(),
-                    )
-                    + piece_value.pawn_value
-                    < alpha)
-            {
-                continue;
-            }
-
-            let mut current_game = game.clone();
-            current_game.make_move(chess_move);
-            nodes_searched += 1;
-
-            let score: f64;
-            let result = self.quiescence(&current_game, -beta, -alpha);
-            match result {
-                Ok((eval, nodes)) => {
-                    score = -eval;
-                    nodes_searched += nodes;
-                }
-                Err(control) => return Err(control),
-            }
-
-            if score >= beta {
-                return Ok((beta, nodes_searched));
-            }
-            if score > alpha {
-                alpha = score;
-            }
-        }
-
-        Ok((alpha, nodes_searched))
+        let available = time.saturating_sub(options.move_overhead).max(1);
+        let base = available / 25;
+        let soft = (base + (inc * 3) / 4).max(1);
+        let hard = ((available / 2).min(soft.saturating_mul(3))).max(soft);
+        (soft, hard)
     }
+}
 
-    fn get_captures_and_checks(&self, game: &Game) -> Vec<(ChessMove, bool, bool)> {
-        let mut captures_and_checks: Vec<(ChessMove, bool, bool)> = vec![];
-        let legal_moves = MoveGen::new_legal(&game.current_position()).collect();
-        let ordered_moves = self.order_moves(&game.current_position(), legal_moves);
-        let board = game.current_position();
+fn print_info(info: SearchInfo) {
+    let pv = info
+        .pv
+        .iter()
+        .map(|mv| mv.to_string())
+        .collect::<Vec<_>>()
+        .join(" ");
+    println!(
+        "info depth {} seldepth {} score {} nodes {} nps {} hashfull {} time {} pv {}",
+        info.depth,
+        info.seldepth,
+        format_score(info.score),
+        info.nodes,
+        info.nps,
+        info.hashfull,
+        info.time_ms,
+        pv,
+    );
+}
 
-        for chess_move in ordered_moves {
-            let board_after_move = board.make_move_new(chess_move);
-
-            let captured_piece = board.piece_on(chess_move.get_dest()) != None;
-            let is_check = board_after_move.checkers().collect::<Vec<Square>>().len() != 0;
-
-            let en_passant_capture = board.piece_on(chess_move.get_source()).unwrap()
-                == Piece::Pawn
-                && (chess_move.get_source().get_rank() != chess_move.get_dest().get_rank())
-                && (chess_move.get_source().get_file() != chess_move.get_dest().get_file());
-
-            if captured_piece || en_passant_capture || is_check {
-                captures_and_checks.push((chess_move, captured_piece, en_passant_capture));
-            }
+fn format_score(score: i32) -> String {
+    if score.abs() >= MATE_SCORE - MAX_PLY as i32 {
+        let mate = ((MATE_SCORE - score.abs()) + 1) / 2;
+        if score > 0 {
+            format!("mate {}", mate)
+        } else {
+            format!("mate -{}", mate)
         }
-
-        captures_and_checks
+    } else {
+        format!("cp {}", score)
     }
+}
 
-    fn start_timer(&mut self, search_options: &SearchOptions) {
-        /* Start timer to check elapsed time and stop it over limit. */
-        self.timer = Some(Instant::now());
-        self.time_for_move = f64::INFINITY;
-
-        match (
-            search_options.chess_game.side_to_move(),
-            search_options.move_time,
-            search_options.white_time,
-            search_options.white_increment,
-            search_options.black_time,
-            search_options.black_increment,
-        ) {
-            (_, 0, 0, 0, 0, 0) => return,
-            (_, move_time, _, _, _, _) if move_time > 0 => {
-                self.time_for_move = move_time as f64;
-            }
-            (Color::White, _, white_time, 0, _, _) if white_time > 0 => {
-                self.time_for_move = 0.05 * (white_time as f64 - search_options.move_overhead);
-            }
-            (Color::White, _, white_time, white_increment, _, _) if white_time > 0 => {
-                self.time_for_move = (0.1 * white_time as f64 + white_increment as f64
-                    - search_options.move_overhead)
-                    .min(white_time as f64 - search_options.move_overhead);
-            }
-            (Color::Black, _, _, _, black_time, 0) if black_time > 0 => {
-                self.time_for_move = 0.05 * (black_time as f64 - search_options.move_overhead);
-            }
-            (Color::Black, _, _, _, black_time, black_increment) if black_time > 0 => {
-                self.time_for_move = (0.1 * black_time as f64 + black_increment as f64
-                    - search_options.move_overhead)
-                    .min(black_time as f64 - search_options.move_overhead);
-            }
-            _ => return,
-        }
-    }
-
-    fn order_moves(&self, board: &Board, moves: Vec<ChessMove>) -> Vec<ChessMove> {
-        let mut scored_moves: Vec<(ChessMove, i32)> = vec![];
-        let piece_value = PieceValue::default();
-
-        for mv in moves {
-            let mut score = 0;
-            let from = mv.get_source();
-            let to = mv.get_dest();
-            let attacker = board.piece_on(from);
-            let victim = board.piece_on(to);
-
-            // MVV-LVA scoring
-            if let (Some(att), Some(vic)) = (attacker, victim) {
-                score += 10 * piece_value.get_piece_value(vic) as i32
-                    - piece_value.get_piece_value(att) as i32;
-            }
-
-            // Promotion bonus
-            if let Some(promo) = mv.get_promotion() {
-                score += 5 * piece_value.get_piece_value(promo) as i32;
-            }
-
-            // Check bonus
-            let new_board = board.make_move_new(mv);
-            if new_board.checkers().0 != 0 {
-                score += 1;
-            }
-
-            scored_moves.push((mv, score));
-        }
-
-        scored_moves.sort_by(|a, b| b.1.cmp(&a.1));
-        scored_moves.into_iter().map(|(mv, _)| mv).collect()
-    }
+fn first_legal_move(board: &Board) -> crate::board::moves::Move {
+    crate::board::movegen::generate_legal_moves(board)
+        .into_iter()
+        .next()
+        .unwrap_or(crate::board::moves::Move::NULL)
 }

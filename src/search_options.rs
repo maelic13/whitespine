@@ -1,48 +1,54 @@
-use std::str::FromStr;
+use crate::board::board::Board;
+use crate::board::movegen::generate_legal_moves;
+use crate::board::moves::Move;
 
-use chess::{Board, ChessMove, Game};
+const MAX_HASH_MB: usize = 33_554_432;
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct SearchOptions {
-    pub chess_game: Game,
-
-    pub move_time: usize,
-    pub white_time: usize,
-    pub white_increment: usize,
-    pub black_time: usize,
-    pub black_increment: usize,
-    pub depth: f64,
-
-    pub move_overhead: f64,
+    pub board: Board,
+    pub move_time: u64,
+    pub white_time: u64,
+    pub white_increment: u64,
+    pub black_time: u64,
+    pub black_increment: u64,
+    pub depth: u32,
+    pub move_overhead: u64,
     pub threads: usize,
+    pub hash_mb: usize,
 }
 
-impl SearchOptions {
-    pub fn default() -> SearchOptions {
-        SearchOptions {
-            chess_game: Game::new(),
-
+impl Default for SearchOptions {
+    fn default() -> Self {
+        Self {
+            board: Board::starting_position(),
             move_time: 0,
             white_time: 0,
             white_increment: 0,
             black_time: 0,
             black_increment: 0,
-            depth: f64::INFINITY,
-
-            move_overhead: 10.,
+            depth: u32::MAX,
+            move_overhead: 10,
             threads: 1,
+            hash_mb: 64,
         }
     }
+}
 
+impl SearchOptions {
     pub fn get_uci_options() -> Vec<String> {
-        Vec::from([
+        vec![
             String::from("option name Move Overhead type spin default 10 min 0 max 5000"),
             String::from("option name Threads type spin default 1 min 1 max 1"),
-        ])
+            format!(
+                "option name Hash type spin default 64 min 1 max {}",
+                MAX_HASH_MB
+            ),
+        ]
     }
 
     pub fn reset(&mut self) {
-        self.chess_game = Game::new();
+        self.board = Board::starting_position();
         self.reset_temporary_parameters();
     }
 
@@ -52,136 +58,119 @@ impl SearchOptions {
             return;
         }
 
-        let mut board = Board::default();
-
-        if args[0] == "fen" {
-            if args.len() < 2 {
+        let mut index;
+        let mut board = if args[0] == "startpos" {
+            index = 1;
+            Board::starting_position()
+        } else if args[0] == "fen" {
+            index = 1;
+            let mut fen_parts = Vec::new();
+            while index < args.len() && args[index] != "moves" {
+                fen_parts.push(args[index].as_str());
+                index += 1;
+            }
+            if fen_parts.is_empty() {
                 println!("info string Invalid FEN.");
                 return;
             }
-            let mut fen = args[1].to_string();
-            for partial in args[2..].as_ref() {
-                if partial == "moves" {
-                    break;
-                }
-                fen += &*String::from(" ");
-                fen += partial;
-            }
-            board = match Board::from_str(fen.as_str()) {
+            match Board::from_fen(&fen_parts.join(" ")) {
                 Ok(board) => board,
                 Err(_) => {
                     println!("info string Invalid FEN.");
                     return;
                 }
-            };
-        }
+            }
+        } else {
+            println!("info string Invalid position command.");
+            return;
+        };
 
-        let moves_start_index = args
-            .iter()
-            .position(|r| r == "moves")
-            .unwrap_or(args.len() - 1)
-            + 1;
-        let played_moves = args[moves_start_index..].to_vec();
-
-        let mut game = Game::new_with_board(board);
-        for chess_move in played_moves {
-            let parsed_move = match ChessMove::from_str(chess_move.as_str()) {
-                Ok(parsed_move) => parsed_move,
-                Err(_) => {
-                    println!("info string Invalid move: {}", chess_move);
-                    return;
+        if index < args.len() && args[index] == "moves" {
+            index += 1;
+            while index < args.len() {
+                let mv_str = &args[index];
+                match parse_uci_move(&board, mv_str) {
+                    Some(mv) => board.make_move(mv),
+                    None => {
+                        println!("info string Illegal move: {}", mv_str);
+                        return;
+                    }
                 }
-            };
-            if !game.make_move(parsed_move) {
-                println!("info string Illegal move: {}", chess_move);
-                return;
+                index += 1;
             }
         }
 
-        self.chess_game = game;
+        self.board = board;
     }
 
     pub fn set_search_parameters(&mut self, args: &[String]) {
         self.reset_temporary_parameters();
 
-        let infinite_index = args.iter().position(|r| r == "infinite");
-        if infinite_index.is_some() {
-            self.depth = f64::INFINITY;
+        if args.iter().any(|arg| arg == "infinite") {
+            self.depth = u32::MAX;
             return;
         }
 
         if args.is_empty() {
-            self.depth = 2.;
+            self.depth = 2;
+            return;
         }
 
-        let move_time_index = args.iter().position(|r| r == "movetime");
-        let white_time_index = args.iter().position(|r| r == "wtime");
-        let white_increment_index = args.iter().position(|r| r == "winc");
-        let black_time_index = args.iter().position(|r| r == "btime");
-        let black_increment_index = args.iter().position(|r| r == "binc");
-        let depth_index = args.iter().position(|r| r == "depth");
-
-        if move_time_index.is_some() {
-            self.move_time = Self::parse_usize(args, move_time_index.unwrap(), "movetime");
+        if let Some(index) = args.iter().position(|arg| arg == "movetime") {
+            self.move_time = Self::parse_u64(args, index, "movetime");
         }
-
-        if white_time_index.is_some() {
-            self.white_time = Self::parse_usize(args, white_time_index.unwrap(), "wtime");
+        if let Some(index) = args.iter().position(|arg| arg == "wtime") {
+            self.white_time = Self::parse_u64(args, index, "wtime");
         }
-        if white_increment_index.is_some() {
-            self.white_increment = Self::parse_usize(args, white_increment_index.unwrap(), "winc");
+        if let Some(index) = args.iter().position(|arg| arg == "winc") {
+            self.white_increment = Self::parse_u64(args, index, "winc");
         }
-        if black_time_index.is_some() {
-            self.black_time = Self::parse_usize(args, black_time_index.unwrap(), "btime");
+        if let Some(index) = args.iter().position(|arg| arg == "btime") {
+            self.black_time = Self::parse_u64(args, index, "btime");
         }
-        if black_increment_index.is_some() {
-            self.black_increment = Self::parse_usize(args, black_increment_index.unwrap(), "binc");
+        if let Some(index) = args.iter().position(|arg| arg == "binc") {
+            self.black_increment = Self::parse_u64(args, index, "binc");
         }
-        if depth_index.is_some() {
-            self.depth = Self::parse_f64(args, depth_index.unwrap(), "depth");
+        if let Some(index) = args.iter().position(|arg| arg == "depth") {
+            self.depth = Self::parse_u32(args, index, "depth").max(1);
         }
     }
 
     pub fn set_option(&mut self, args: &[String]) {
-        let name_index = args.iter().position(|r| r == "name");
-        let value_index = args.iter().position(|r| r == "value");
+        let name_index = args.iter().position(|arg| arg == "name");
+        let value_index = args.iter().position(|arg| arg == "value");
 
-        if !name_index.is_some()
-            || !value_index.is_some()
+        if name_index.is_none()
+            || value_index.is_none()
             || name_index.unwrap() >= value_index.unwrap()
         {
-            println!("Invalid setoption command.");
+            println!("info string Invalid setoption command.");
             return;
         }
 
-        let option_name: &str = &args[name_index.unwrap() + 1..value_index.unwrap()]
+        let option_name = args[name_index.unwrap() + 1..value_index.unwrap()]
             .join(" ")
             .to_lowercase();
-        let value = &args[value_index.unwrap() + 1..].join(" ").to_lowercase();
+        let value = args[value_index.unwrap() + 1..].join(" ").to_lowercase();
 
-        match option_name {
-            "move overhead" => {
-                if let Ok(move_overhead) = value.parse::<f64>()
-                    && move_overhead.is_finite()
-                    && (0.0..=5000.0).contains(&move_overhead)
-                {
-                    self.move_overhead = move_overhead;
-                } else {
-                    println!("info string Invalid Move Overhead value.");
-                }
-            }
-            "threads" => {
-                if let Ok(threads) = value.parse::<usize>() {
-                    self.threads = threads.clamp(1, 1);
-                } else {
-                    println!("info string Invalid Threads value.");
-                }
-            }
+        match option_name.as_str() {
+            "move overhead" => match value.parse::<u64>() {
+                Ok(parsed) if parsed <= 5000 => self.move_overhead = parsed,
+                _ => println!("info string Invalid Move Overhead value."),
+            },
+            "threads" => match value.parse::<usize>() {
+                Ok(parsed) => self.threads = parsed.clamp(1, 1),
+                Err(_) => println!("info string Invalid Threads value."),
+            },
+            "hash" => match value.parse::<usize>() {
+                Ok(parsed) => self.hash_mb = parsed.clamp(1, MAX_HASH_MB),
+                Err(_) => println!("info string Invalid Hash value."),
+            },
             _ => {}
         }
     }
 
-    fn parse_usize(args: &[String], index: usize, name: &str) -> usize {
+    fn parse_u64(args: &[String], index: usize, name: &str) -> u64 {
         match args.get(index + 1).and_then(|value| value.parse().ok()) {
             Some(value) => value,
             None => {
@@ -191,12 +180,12 @@ impl SearchOptions {
         }
     }
 
-    fn parse_f64(args: &[String], index: usize, name: &str) -> f64 {
+    fn parse_u32(args: &[String], index: usize, name: &str) -> u32 {
         match args.get(index + 1).and_then(|value| value.parse().ok()) {
             Some(value) => value,
             None => {
                 println!("info string Invalid {} value.", name);
-                2.
+                2
             }
         }
     }
@@ -207,6 +196,12 @@ impl SearchOptions {
         self.white_increment = 0;
         self.black_time = 0;
         self.black_increment = 0;
-        self.depth = f64::INFINITY;
+        self.depth = u32::MAX;
     }
+}
+
+fn parse_uci_move(board: &Board, text: &str) -> Option<Move> {
+    generate_legal_moves(board)
+        .into_iter()
+        .find(|mv| mv.to_string() == text)
 }
