@@ -1,17 +1,10 @@
-use std::sync::mpsc::channel;
+use std::sync::Arc;
 use std::thread;
 
-use crate::engine::Engine;
-use crate::infra::capitalize_first_letter;
-use crate::uci_protocol::UciProtocol;
-
-mod engine;
-mod engine_command;
-mod heuristic;
-mod infra;
-mod piece_value;
-mod search_options;
-mod uci_protocol;
+use whitespine::engine::Engine;
+use whitespine::engine_command::{EngineCommandQueue, EngineControl};
+use whitespine::infra::capitalize_first_letter;
+use whitespine::uci_protocol::UciProtocol;
 
 fn main() {
     println!(
@@ -21,10 +14,11 @@ fn main() {
         env!("CARGO_PKG_AUTHORS").replace(':', ", ")
     );
 
-    let (tx, rx) = channel();
-    let mut engine = Engine::new(rx);
+    let commands = EngineCommandQueue::default();
+    let control = Arc::new(EngineControl::default());
+    let mut engine = Engine::new(commands.clone(), Arc::clone(&control));
     let engine_thread = thread::spawn(move || engine.start());
 
-    UciProtocol::new(tx).uci_loop();
+    UciProtocol::new(commands, control).uci_loop();
     engine_thread.join().expect("Engine thread failed.");
 }
