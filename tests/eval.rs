@@ -105,7 +105,7 @@ fn bishop_pair_bonus() {
 #[test]
 fn doubled_pawns_penalized() {
     // Two doubled pawns (d2+d3) vs two undoubled pawns (d2+e2) — same material count.
-    let doubled   = eval("4k3/8/8/8/8/3P4/3P4/4K3 w - - 0 1");
+    let doubled = eval("4k3/8/8/8/8/3P4/3P4/4K3 w - - 0 1");
     let undoubled = eval("4k3/8/8/8/8/8/3PP3/4K3 w - - 0 1");
     assert!(
         doubled <= undoubled,
@@ -133,7 +133,7 @@ fn exposed_king_penalized_vs_sheltered_king() {
     // White king on g1 with full pawn shelter (f2, g2, h2) should score better
     // than white king on e4 (centre, no pawn shelter) with same material.
     let sheltered = eval("4k3/pppppppp/8/8/8/8/5PPP/6K1 w - - 0 1");
-    let exposed   = eval("4k3/pppppppp/8/8/4K3/8/8/8 w - - 0 1");
+    let exposed = eval("4k3/pppppppp/8/8/4K3/8/8/8 w - - 0 1");
     assert!(
         sheltered >= exposed - 50,
         "sheltered king ({sheltered}) should not be much worse than exposed king ({exposed})"

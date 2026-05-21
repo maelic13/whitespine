@@ -11,9 +11,9 @@ use super::attacks::ATTACKS;
 use super::bitboard::Bitboard;
 use super::board::Board;
 use super::moves::{
-    Move, MoveList, CAPTURE, CASTLE_KINGSIDE, CASTLE_QUEENSIDE, DOUBLE_PUSH, EN_PASSANT,
-    PROMO_CAPTURE_BISHOP, PROMO_CAPTURE_KNIGHT, PROMO_CAPTURE_QUEEN, PROMO_CAPTURE_ROOK,
-    PROMO_BISHOP, PROMO_KNIGHT, PROMO_QUEEN, PROMO_ROOK, QUIET,
+    CAPTURE, CASTLE_KINGSIDE, CASTLE_QUEENSIDE, DOUBLE_PUSH, EN_PASSANT, Move, MoveList,
+    PROMO_BISHOP, PROMO_CAPTURE_BISHOP, PROMO_CAPTURE_KNIGHT, PROMO_CAPTURE_QUEEN,
+    PROMO_CAPTURE_ROOK, PROMO_KNIGHT, PROMO_QUEEN, PROMO_ROOK, QUIET,
 };
 use super::piece::{CastlingRights, Color, Piece};
 use super::square::{Rank, Square};
@@ -66,9 +66,9 @@ pub fn perft(board: &mut Board, depth: u32) -> u64 {
 #[inline(always)]
 pub fn mvv_lva(board: &Board, mv: Move) -> i16 {
     // Victim value (the piece being taken)
-    const VICTIM: [i16; 6]   = [10, 30, 30, 50, 90, 200]; // P N B R Q K
+    const VICTIM: [i16; 6] = [10, 30, 30, 50, 90, 200]; // P N B R Q K
     // Attacker value (subtracted, so cheaper attackers rank higher)
-    const ATTACKER: [i16; 6] = [ 1,  3,  3,  5,  9,  99]; // P N B R Q K
+    const ATTACKER: [i16; 6] = [1, 3, 3, 5, 9, 99]; // P N B R Q K
 
     let victim = if mv.is_en_passant() {
         Piece::Pawn
@@ -132,7 +132,18 @@ fn gen_moves(board: &Board, captures_only: bool, moves: &mut MoveList) {
     };
 
     // --- Pawns ---
-    gen_pawn_moves(board, us, them, their_occ, all_occ, pinned, king_sq, check_mask, captures_only, moves);
+    gen_pawn_moves(
+        board,
+        us,
+        them,
+        their_occ,
+        all_occ,
+        pinned,
+        king_sq,
+        check_mask,
+        captures_only,
+        moves,
+    );
 
     // --- Knights ---
     let mut knights = board.pieces(us, Piece::Knight) & !pinned;
@@ -257,14 +268,22 @@ fn gen_pawn_moves(
         // Double pushes: only from the starting rank, through an empty square
         let can_double = push_one!(free_pawns & rank_start) & !all_occ;
         for to in push_one!(can_double) & !all_occ & check_mask {
-            moves.push(Move::new(Square((to.0 as i32 - push_off * 2) as u8), to, DOUBLE_PUSH));
+            moves.push(Move::new(
+                Square((to.0 as i32 - push_off * 2) as u8),
+                to,
+                DOUBLE_PUSH,
+            ));
         }
     }
 
     // West captures
     let west_caps = cap_west!(free_pawns) & their_occ & check_mask;
     for to in west_caps & !promo_rank {
-        moves.push(Move::new(Square((to.0 as i32 - cap_w_off) as u8), to, CAPTURE));
+        moves.push(Move::new(
+            Square((to.0 as i32 - cap_w_off) as u8),
+            to,
+            CAPTURE,
+        ));
     }
     for to in west_caps & promo_rank {
         let from = Square((to.0 as i32 - cap_w_off) as u8);
@@ -277,7 +296,11 @@ fn gen_pawn_moves(
     // East captures
     let east_caps = cap_east!(free_pawns) & their_occ & check_mask;
     for to in east_caps & !promo_rank {
-        moves.push(Move::new(Square((to.0 as i32 - cap_e_off) as u8), to, CAPTURE));
+        moves.push(Move::new(
+            Square((to.0 as i32 - cap_e_off) as u8),
+            to,
+            CAPTURE,
+        ));
     }
     for to in east_caps & promo_rank {
         let from = Square((to.0 as i32 - cap_e_off) as u8);
@@ -291,14 +314,17 @@ fn gen_pawn_moves(
     if let Some(ep_sq) = board.ep_square() {
         let ep_bb = Bitboard::from(ep_sq);
         let ep_cap_sq = Square((ep_sq.0 as i32 - push_off) as u8);
-        let ep_resolves = (check_mask & ep_bb).any() || (check_mask & Bitboard::from(ep_cap_sq)).any();
+        let ep_resolves =
+            (check_mask & ep_bb).any() || (check_mask & Bitboard::from(ep_cap_sq)).any();
 
         if ep_resolves {
             for from in free_pawns & atk.pawn(them, ep_sq) {
                 let occ_after = all_occ ^ Bitboard::from(from) ^ ep_bb ^ Bitboard::from(ep_cap_sq);
-                let exposed_rook = (board.pieces(them, Piece::Rook) | board.pieces(them, Piece::Queen))
+                let exposed_rook = (board.pieces(them, Piece::Rook)
+                    | board.pieces(them, Piece::Queen))
                     & atk.rook(king_sq, occ_after);
-                let exposed_diag = (board.pieces(them, Piece::Bishop) | board.pieces(them, Piece::Queen))
+                let exposed_diag = (board.pieces(them, Piece::Bishop)
+                    | board.pieces(them, Piece::Queen))
                     & atk.bishop(king_sq, occ_after);
                 if exposed_rook.is_empty() && exposed_diag.is_empty() {
                     moves.push(Move::new(from, ep_sq, EN_PASSANT));
@@ -330,7 +356,8 @@ fn gen_pawn_moves(
             }
         }
 
-        let cap_targets = (cap_west!(from_bb) | cap_east!(from_bb)) & their_occ & check_mask & pin_ray;
+        let cap_targets =
+            (cap_west!(from_bb) | cap_east!(from_bb)) & their_occ & check_mask & pin_ray;
         for to in cap_targets {
             push_pawn_move_flags(from, to, true, moves);
         }
@@ -340,12 +367,15 @@ fn gen_pawn_moves(
             if (atk.pawn(us, from) & Bitboard::from(ep_sq) & pin_ray).any() {
                 let ep_bb = Bitboard::from(ep_sq);
                 let ep_cap_sq = Square((ep_sq.0 as i32 - push_off) as u8);
-                let ep_resolves = (check_mask & ep_bb).any() || (check_mask & Bitboard::from(ep_cap_sq)).any();
+                let ep_resolves =
+                    (check_mask & ep_bb).any() || (check_mask & Bitboard::from(ep_cap_sq)).any();
                 if ep_resolves {
                     let occ_after = all_occ ^ from_bb ^ ep_bb ^ Bitboard::from(ep_cap_sq);
-                    let exposed_rook = (board.pieces(them, Piece::Rook) | board.pieces(them, Piece::Queen))
+                    let exposed_rook = (board.pieces(them, Piece::Rook)
+                        | board.pieces(them, Piece::Queen))
                         & atk.rook(king_sq, occ_after);
-                    let exposed_diag = (board.pieces(them, Piece::Bishop) | board.pieces(them, Piece::Queen))
+                    let exposed_diag = (board.pieces(them, Piece::Bishop)
+                        | board.pieces(them, Piece::Queen))
                         & atk.bishop(king_sq, occ_after);
                     if exposed_rook.is_empty() && exposed_diag.is_empty() {
                         moves.push(Move::new(from, ep_sq, EN_PASSANT));
@@ -394,34 +424,35 @@ fn add_move(from: Square, to: Square, their_occ: Bitboard, moves: &mut MoveList)
 // -----------------------------------------------------------------------
 
 fn gen_castling(board: &Board, us: Color, them: Color, all_occ: Bitboard, moves: &mut MoveList) {
-    let (ks_flag, qs_flag, king_sq, ks_rook, qs_rook, ks_empty, qs_empty, ks_safe, qs_safe) =
-        if us == Color::White {
-            (
-                CastlingRights::WHITE_KINGSIDE,
-                CastlingRights::WHITE_QUEENSIDE,
-                Square::E1,
-                Square::H1,
-                Square::A1,
-                // Squares that must be empty for KS / QS
-                Bitboard::from(Square::F1) | Bitboard::from(Square::G1),
-                Bitboard::from(Square::B1) | Bitboard::from(Square::C1) | Bitboard::from(Square::D1),
-                // Squares that must not be attacked for KS / QS (king path)
-                [Square::F1, Square::G1],
-                [Square::C1, Square::D1],
-            )
-        } else {
-            (
-                CastlingRights::BLACK_KINGSIDE,
-                CastlingRights::BLACK_QUEENSIDE,
-                Square::E8,
-                Square::H8,
-                Square::A8,
-                Bitboard::from(Square::F8) | Bitboard::from(Square::G8),
-                Bitboard::from(Square::B8) | Bitboard::from(Square::C8) | Bitboard::from(Square::D8),
-                [Square::F8, Square::G8],
-                [Square::C8, Square::D8],
-            )
-        };
+    let (ks_flag, qs_flag, king_sq, ks_rook, qs_rook, ks_empty, qs_empty, ks_safe, qs_safe) = if us
+        == Color::White
+    {
+        (
+            CastlingRights::WHITE_KINGSIDE,
+            CastlingRights::WHITE_QUEENSIDE,
+            Square::E1,
+            Square::H1,
+            Square::A1,
+            // Squares that must be empty for KS / QS
+            Bitboard::from(Square::F1) | Bitboard::from(Square::G1),
+            Bitboard::from(Square::B1) | Bitboard::from(Square::C1) | Bitboard::from(Square::D1),
+            // Squares that must not be attacked for KS / QS (king path)
+            [Square::F1, Square::G1],
+            [Square::C1, Square::D1],
+        )
+    } else {
+        (
+            CastlingRights::BLACK_KINGSIDE,
+            CastlingRights::BLACK_QUEENSIDE,
+            Square::E8,
+            Square::H8,
+            Square::A8,
+            Bitboard::from(Square::F8) | Bitboard::from(Square::G8),
+            Bitboard::from(Square::B8) | Bitboard::from(Square::C8) | Bitboard::from(Square::D8),
+            [Square::F8, Square::G8],
+            [Square::C8, Square::D8],
+        )
+    };
 
     // Verify the rook is actually present (handles FEN edge cases)
     if board.castling.has(ks_flag)
@@ -454,8 +485,8 @@ fn compute_pinned(board: &Board, king_sq: Square, us: Color, them: Color) -> Bit
     // X-ray diagonal: see through our own pieces to find diagonal pinners
     let bishop_vision = atk.bishop(king_sq, board.all_occ);
     let xray_bishop = atk.bishop(king_sq, board.all_occ ^ (bishop_vision & our_occ));
-    let diag_pinners = (board.pieces(them, Piece::Bishop) | board.pieces(them, Piece::Queen))
-        & xray_bishop;
+    let diag_pinners =
+        (board.pieces(them, Piece::Bishop) | board.pieces(them, Piece::Queen)) & xray_bishop;
     for pinner_sq in diag_pinners {
         let ray = between(king_sq, pinner_sq);
         let blockers = ray & our_occ;
@@ -467,8 +498,8 @@ fn compute_pinned(board: &Board, king_sq: Square, us: Color, them: Color) -> Bit
     // X-ray orthogonal: see through our own pieces to find orthogonal pinners
     let rook_vision = atk.rook(king_sq, board.all_occ);
     let xray_rook = atk.rook(king_sq, board.all_occ ^ (rook_vision & our_occ));
-    let ortho_pinners = (board.pieces(them, Piece::Rook) | board.pieces(them, Piece::Queen))
-        & xray_rook;
+    let ortho_pinners =
+        (board.pieces(them, Piece::Rook) | board.pieces(them, Piece::Queen)) & xray_rook;
     for pinner_sq in ortho_pinners {
         let ray = between(king_sq, pinner_sq);
         let blockers = ray & our_occ;
@@ -505,7 +536,6 @@ pub fn ray_through(a: Square, b: Square) -> Bitboard {
     LINE[a.index()][b.index()]
 }
 
-
 // -----------------------------------------------------------------------
 // Precomputed between / line tables
 // -----------------------------------------------------------------------
@@ -534,7 +564,8 @@ fn init_between() -> [[Bitboard; 64]; 64] {
                 let mut r = ar as i8 + sr;
                 let mut f = af as i8 + sf;
                 while r != br as i8 || f != bf as i8 {
-                    table[a as usize][b as usize] |= Bitboard::from(Square((r as u8) * 8 + f as u8));
+                    table[a as usize][b as usize] |=
+                        Bitboard::from(Square((r as u8) * 8 + f as u8));
                     r += sr;
                     f += sf;
                 }
@@ -603,10 +634,16 @@ impl Board {
         if (atk.king(sq) & self.pieces(attacker, Piece::King)).any() {
             return true;
         }
-        if (atk.bishop(sq, occ) & (self.pieces(attacker, Piece::Bishop) | self.pieces(attacker, Piece::Queen))).any() {
+        if (atk.bishop(sq, occ)
+            & (self.pieces(attacker, Piece::Bishop) | self.pieces(attacker, Piece::Queen)))
+        .any()
+        {
             return true;
         }
-        if (atk.rook(sq, occ) & (self.pieces(attacker, Piece::Rook) | self.pieces(attacker, Piece::Queen))).any() {
+        if (atk.rook(sq, occ)
+            & (self.pieces(attacker, Piece::Rook) | self.pieces(attacker, Piece::Queen)))
+        .any()
+        {
             return true;
         }
         false

@@ -1,7 +1,7 @@
 use std::hint::black_box;
 use std::time::{Duration, Instant};
 
-use whitespine::board::{generate_captures, generate_legal_moves, perft, Board};
+use whitespine::board::{Board, generate_captures, generate_legal_moves, perft};
 
 const WARMUP: Duration = Duration::from_millis(150);
 const MEASURE: Duration = Duration::from_millis(750);

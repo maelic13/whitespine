@@ -217,7 +217,7 @@ impl Evaluator {
                 if wb_dark != bb_dark {
                     let total_pawns = (board.pieces(Color::White, Piece::Pawn)
                         | board.pieces(Color::Black, Piece::Pawn))
-                        .count() as i32;
+                    .count() as i32;
                     let scale = (32 + total_pawns * 4).min(48);
                     score = score * scale / 48;
                 }
@@ -225,10 +225,10 @@ impl Evaluator {
         }
         // Two knights vs bare king is a theoretical draw
         {
-            let only_king_w = board.color_occ(Color::White)
-                == Bitboard::from(board.king_sq(Color::White));
-            let only_king_b = board.color_occ(Color::Black)
-                == Bitboard::from(board.king_sq(Color::Black));
+            let only_king_w =
+                board.color_occ(Color::White) == Bitboard::from(board.king_sq(Color::White));
+            let only_king_b =
+                board.color_occ(Color::Black) == Bitboard::from(board.king_sq(Color::Black));
             let has_only_2n = |c: Color| {
                 board.pieces(c, Piece::Pawn).is_empty()
                     && board.pieces(c, Piece::Bishop).is_empty()
@@ -475,8 +475,7 @@ impl Evaluator {
 
         // Space: center squares (files C-F) not occupied by own pawns, not attacked by enemy pawns
         {
-            let center_files =
-                file_mask(2) | file_mask(3) | file_mask(4) | file_mask(5);
+            let center_files = file_mask(2) | file_mask(3) | file_mask(4) | file_mask(5);
             let white_space_ranks = rank_mask(1) | rank_mask(2) | rank_mask(3);
             let black_space_ranks = rank_mask(4) | rank_mask(5) | rank_mask(6);
             let wp = board.pieces(Color::White, Piece::Pawn);

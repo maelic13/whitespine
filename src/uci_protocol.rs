@@ -102,9 +102,7 @@ impl UciProtocol {
     }
 
     fn bench(&self, args: &[String]) {
-        let depth: u32 = args.first()
-            .and_then(|s| s.parse().ok())
-            .unwrap_or(13);
+        let depth: u32 = args.first().and_then(|s| s.parse().ok()).unwrap_or(13);
         self.sender
             .send(EngineCommand::bench(depth))
             .expect("Bench command could not be sent.");

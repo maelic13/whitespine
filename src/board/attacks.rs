@@ -98,7 +98,14 @@ impl AttackTables {
             let size = 1usize << n;
             let offset = bishop_table.len();
             bishop_table.resize(offset + size, Bitboard::EMPTY);
-            let magic = find_magic(mask, shift, false, sq, &mut rng, &mut bishop_table[offset..]);
+            let magic = find_magic(
+                mask,
+                shift,
+                false,
+                sq,
+                &mut rng,
+                &mut bishop_table[offset..],
+            );
             bishop_entries[sq.index()] = MagicEntry {
                 mask,
                 magic,
@@ -335,7 +342,14 @@ fn bishop_attacks_slow(sq: Square, occ: u64) -> u64 {
 
 /// Find a magic number for `sq` with the given `mask` / `shift`.
 /// Fills `table[0..size]` with the correct attack bitboards on success.
-fn find_magic(mask: u64, shift: u32, is_rook: bool, sq: Square, rng: &mut Rng, table: &mut [Bitboard]) -> u64 {
+fn find_magic(
+    mask: u64,
+    shift: u32,
+    is_rook: bool,
+    sq: Square,
+    rng: &mut Rng,
+    table: &mut [Bitboard],
+) -> u64 {
     let n = mask.count_ones() as usize;
     let size = 1usize << n;
     debug_assert_eq!(table.len(), size);

@@ -134,17 +134,26 @@ impl MoveList {
     /// Append a move.
     #[inline(always)]
     pub fn push(&mut self, mv: Move) {
-        debug_assert!(self.len < MAX_MOVES, "MoveList overflow — more than {MAX_MOVES} moves");
+        debug_assert!(
+            self.len < MAX_MOVES,
+            "MoveList overflow — more than {MAX_MOVES} moves"
+        );
         // SAFETY: chess positions have at most 218 legal moves; MAX_MOVES = 256.
-        unsafe { *self.moves.get_unchecked_mut(self.len) = mv; }
+        unsafe {
+            *self.moves.get_unchecked_mut(self.len) = mv;
+        }
         self.len += 1;
     }
 
     #[inline(always)]
-    pub fn len(&self) -> usize { self.len }
+    pub fn len(&self) -> usize {
+        self.len
+    }
 
     #[inline(always)]
-    pub fn is_empty(&self) -> bool { self.len == 0 }
+    pub fn is_empty(&self) -> bool {
+        self.len == 0
+    }
 
     /// View the populated portion as a slice.
     #[inline(always)]
@@ -167,7 +176,9 @@ impl MoveList {
 }
 
 impl Default for MoveList {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 // ---- Consuming iterator ----
@@ -204,7 +215,10 @@ impl IntoIterator for MoveList {
     type IntoIter = MoveListIntoIter;
     #[inline(always)]
     fn into_iter(self) -> Self::IntoIter {
-        MoveListIntoIter { list: self, index: 0 }
+        MoveListIntoIter {
+            list: self,
+            index: 0,
+        }
     }
 }
 

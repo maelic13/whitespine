@@ -5,7 +5,7 @@ use crate::board::movegen::{generate_captures, generate_legal_moves};
 use crate::board::moves::Move;
 use crate::board::piece::Piece;
 use crate::eval::Evaluator;
-use crate::tt::{TTFlag, TranspositionTable, INF_EVAL, MATE_SCORE, MAX_PLY, VALUE_NONE};
+use crate::tt::{INF_EVAL, MATE_SCORE, MAX_PLY, TTFlag, TranspositionTable, VALUE_NONE};
 
 const MAX_MOVES: usize = 256;
 const HISTORY_MAX: i32 = 16384;
@@ -394,11 +394,7 @@ impl Searcher {
             tt_entry
                 .and_then(|entry| {
                     let se = entry.static_eval as i32;
-                    if se < INF_EVAL {
-                        Some(se)
-                    } else {
-                        None
-                    }
+                    if se < INF_EVAL { Some(se) } else { None }
                 })
                 .unwrap_or_else(|| self.evaluator.evaluate(board))
         };

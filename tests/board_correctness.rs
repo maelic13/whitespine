@@ -1,9 +1,11 @@
+use whitespine::board::moves::CAPTURE;
 /// Correctness tests for the custom board representation.
 ///
 /// Perft node counts are the gold standard for verifying move generation.
 /// All expected values are taken from the Chess Programming Wiki.
-use whitespine::board::{generate_legal_moves, mvv_lva, perft, Bitboard, Board, Color, Move, Piece, Square};
-use whitespine::board::moves::CAPTURE;
+use whitespine::board::{
+    Bitboard, Board, Color, Move, Piece, Square, generate_legal_moves, mvv_lva, perft,
+};
 
 // -----------------------------------------------------------------------
 // FEN round-trip
@@ -115,7 +117,10 @@ fn hash_transposition_property() {
     b2.make_move(find_move(&b2, Square::D7, Square::D6));
 
     assert_eq!(b1.to_fen(), b2.to_fen());
-    assert_eq!(b1.hash, b2.hash, "same position via different paths should have same hash");
+    assert_eq!(
+        b1.hash, b2.hash,
+        "same position via different paths should have same hash"
+    );
 }
 
 // -----------------------------------------------------------------------
@@ -126,7 +131,11 @@ fn hash_transposition_property() {
 fn starting_position_has_20_moves() {
     let board = Board::starting_position();
     let moves = generate_legal_moves(&board);
-    assert_eq!(moves.len(), 20, "Starting position should have exactly 20 legal moves");
+    assert_eq!(
+        moves.len(),
+        20,
+        "Starting position should have exactly 20 legal moves"
+    );
 }
 
 #[test]
@@ -153,7 +162,11 @@ fn in_check_position_limited_moves() {
     let board = Board::from_fen(fen).unwrap();
     assert!(board.is_in_check());
     let moves = generate_legal_moves(&board);
-    assert_eq!(moves.len(), 5, "In-check position should have 5 legal moves");
+    assert_eq!(
+        moves.len(),
+        5,
+        "In-check position should have 5 legal moves"
+    );
 }
 
 // -----------------------------------------------------------------------
@@ -192,56 +205,49 @@ fn perft_startpos_depth5() {
 
 #[test]
 fn perft_kiwipete_depth1() {
-    let mut board = Board::from_fen(
-        "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1",
-    )
-    .unwrap();
+    let mut board =
+        Board::from_fen("r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1")
+            .unwrap();
     assert_eq!(perft(&mut board, 1), 48);
 }
 
 #[test]
 fn perft_kiwipete_depth2() {
-    let mut board = Board::from_fen(
-        "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1",
-    )
-    .unwrap();
+    let mut board =
+        Board::from_fen("r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1")
+            .unwrap();
     assert_eq!(perft(&mut board, 2), 2_039);
 }
 
 #[test]
 fn perft_kiwipete_depth3() {
-    let mut board = Board::from_fen(
-        "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1",
-    )
-    .unwrap();
+    let mut board =
+        Board::from_fen("r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1")
+            .unwrap();
     assert_eq!(perft(&mut board, 3), 97_862);
 }
 
 #[test]
 fn perft_pos3_depth5() {
     // Position 3: en passant heavy
-    let mut board =
-        Board::from_fen("8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1").unwrap();
+    let mut board = Board::from_fen("8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1").unwrap();
     assert_eq!(perft(&mut board, 5), 674_624);
 }
 
 #[test]
 fn perft_pos4_depth4() {
     // Position 4 from CPW (white to move, depth 1 = 6, depth 4 = 422333)
-    let mut board = Board::from_fen(
-        "r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1",
-    )
-    .unwrap();
+    let mut board =
+        Board::from_fen("r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1")
+            .unwrap();
     assert_eq!(perft(&mut board, 4), 422_333);
 }
 
 #[test]
 fn perft_pos5_depth4() {
     // Position 5 from CPW
-    let mut board = Board::from_fen(
-        "rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8",
-    )
-    .unwrap();
+    let mut board =
+        Board::from_fen("rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8").unwrap();
     assert_eq!(perft(&mut board, 4), 2_103_487);
 }
 
@@ -255,10 +261,7 @@ fn en_passant_capture_works() {
     let mut board =
         Board::from_fen("rnbqkbnr/ppp1pppp/8/3pP3/8/8/PPPP1PPP/RNBQKBNR w KQkq d6 0 2").unwrap();
     let moves = generate_legal_moves(&board);
-    let ep_move = moves
-        .iter()
-        .find(|&&mv| mv.is_en_passant())
-        .copied();
+    let ep_move = moves.iter().find(|&&mv| mv.is_en_passant()).copied();
     assert!(ep_move.is_some(), "en passant capture should be available");
     let mv = ep_move.unwrap();
     board.make_move(mv);
@@ -269,8 +272,7 @@ fn en_passant_capture_works() {
         "white pawn should be on d6 after EP"
     );
     assert!(
-        board.pieces(Color::Black, Piece::Pawn) & Bitboard::from(Square::D5)
-            == Bitboard::EMPTY,
+        board.pieces(Color::Black, Piece::Pawn) & Bitboard::from(Square::D5) == Bitboard::EMPTY,
         "black pawn on d5 should be gone after EP"
     );
 }
@@ -280,10 +282,7 @@ fn castling_kingside_white() {
     let fen = "r1bqk2r/pppp1ppp/2n2n2/2b1p3/2B1P3/2N2N2/PPPP1PPP/R1BQK2R w KQkq - 4 4";
     let mut board = Board::from_fen(fen).unwrap();
     let moves = generate_legal_moves(&board);
-    let castle = moves
-        .iter()
-        .find(|&&mv| mv.is_castling())
-        .copied();
+    let castle = moves.iter().find(|&&mv| mv.is_castling()).copied();
     assert!(castle.is_some(), "kingside castling should be available");
     let mv = castle.unwrap();
     board.make_move(mv);
@@ -302,7 +301,11 @@ fn promotion_generates_four_moves() {
     let board = Board::from_fen(fen).unwrap();
     let moves = generate_legal_moves(&board);
     let promos: Vec<_> = moves.iter().filter(|&&mv| mv.is_promo()).collect();
-    assert_eq!(promos.len(), 4, "should generate 4 promotion moves (Q, R, B, N)");
+    assert_eq!(
+        promos.len(),
+        4,
+        "should generate 4 promotion moves (Q, R, B, N)"
+    );
 }
 
 // -----------------------------------------------------------------------
@@ -350,7 +353,10 @@ fn null_move_clears_ep_square() {
     let ep_before = board.ep_square().map(|s| s.index()).unwrap_or(255);
     board.make_null_move();
     // EP square must be cleared after passing the turn
-    assert!(board.ep_square().is_none(), "EP square should be cleared after null move");
+    assert!(
+        board.ep_square().is_none(),
+        "EP square should be cleared after null move"
+    );
     board.unmake_null_move();
     // EP restored
     assert_eq!(
@@ -405,7 +411,10 @@ fn no_repetition_after_irreversible_move() {
 fn material_tracking_startpos() {
     // Starting position is perfectly balanced — White and Black have equal material.
     let board = Board::starting_position();
-    assert_eq!(board.material, 0, "starting position should have zero material imbalance");
+    assert_eq!(
+        board.material, 0,
+        "starting position should have zero material imbalance"
+    );
 }
 
 #[test]
@@ -423,7 +432,10 @@ fn material_tracking_after_capture() {
         "material should increase by 100 after White captures a Black pawn"
     );
     board.unmake_move(cap);
-    assert_eq!(board.material, initial_material, "material should be restored after unmake");
+    assert_eq!(
+        board.material, initial_material,
+        "material should be restored after unmake"
+    );
 }
 
 // -----------------------------------------------------------------------

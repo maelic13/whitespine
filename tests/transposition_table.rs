@@ -1,8 +1,6 @@
 /// Tests for the transposition table (TT) implementation.
 use whitespine::board::moves::Move;
-use whitespine::tt::{
-    INF_EVAL, MATE_SCORE, MAX_PLY, TTFlag, TranspositionTable, VALUE_NONE,
-};
+use whitespine::tt::{INF_EVAL, MATE_SCORE, MAX_PLY, TTFlag, TranspositionTable, VALUE_NONE};
 
 // -----------------------------------------------------------------------
 // Probe on empty TT
@@ -102,8 +100,22 @@ fn deeper_entry_replaces_shallower() {
 #[test]
 fn clear_empties_all_entries() {
     let mut tt = TranspositionTable::new(1);
-    tt.store(0x1234_5678_9ABC_DEF0u64, 5, TTFlag::Exact, 100, 90, Move::NULL);
-    tt.store(0xFEDC_BA98_7654_3210u64, 3, TTFlag::Beta, -200, -220, Move::NULL);
+    tt.store(
+        0x1234_5678_9ABC_DEF0u64,
+        5,
+        TTFlag::Exact,
+        100,
+        90,
+        Move::NULL,
+    );
+    tt.store(
+        0xFEDC_BA98_7654_3210u64,
+        3,
+        TTFlag::Beta,
+        -200,
+        -220,
+        Move::NULL,
+    );
     tt.clear();
     assert!(tt.probe(0x1234_5678_9ABC_DEF0u64).is_none());
     assert!(tt.probe(0xFEDC_BA98_7654_3210u64).is_none());
@@ -126,7 +138,8 @@ fn new_search_changes_age() {
     assert!(
         full_after <= full_before,
         "hashfull should not increase after new_search (before: {}, after: {})",
-        full_before, full_after
+        full_before,
+        full_after
     );
 }
 
@@ -145,10 +158,15 @@ fn hashfull_increases_after_stores() {
     let mut tt = TranspositionTable::new(1);
     // Store enough entries to reliably appear in the first 334 sampled clusters.
     for i in 0u64..5000 {
-        let hash = i.wrapping_mul(0x9E3779B97F4A7C15).wrapping_add(0x6C62272E07BB0142);
+        let hash = i
+            .wrapping_mul(0x9E3779B97F4A7C15)
+            .wrapping_add(0x6C62272E07BB0142);
         tt.store(hash, 4, TTFlag::Exact, i as i32 % 1000, 0, Move::NULL);
     }
-    assert!(tt.hashfull() > 0, "hashfull should be > 0 after storing 5000 entries");
+    assert!(
+        tt.hashfull() > 0,
+        "hashfull should be > 0 after storing 5000 entries"
+    );
 }
 
 // -----------------------------------------------------------------------
@@ -183,18 +201,21 @@ fn normal_score_unchanged_by_round_trip() {
             "normal score {score} should not be adjusted by score_to_tt"
         );
         let recovered = TranspositionTable::score_from_tt(stored, ply);
-        assert_eq!(
-            recovered, score,
-            "normal score {score} round-trip failed"
-        );
+        assert_eq!(recovered, score, "normal score {score} round-trip failed");
     }
 }
 
 #[test]
 fn value_none_is_distinct() {
     // VALUE_NONE must not collide with any real score.
-    assert!(VALUE_NONE.abs() > INF_EVAL, "VALUE_NONE should be out-of-range");
-    assert!(VALUE_NONE.abs() > MATE_SCORE, "VALUE_NONE should exceed MATE_SCORE");
+    assert!(
+        VALUE_NONE.abs() > INF_EVAL,
+        "VALUE_NONE should be out-of-range"
+    );
+    assert!(
+        VALUE_NONE.abs() > MATE_SCORE,
+        "VALUE_NONE should exceed MATE_SCORE"
+    );
 }
 
 #[test]

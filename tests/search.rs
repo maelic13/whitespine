@@ -1,5 +1,5 @@
 /// Tests for the search engine, including SEE correctness.
-use whitespine::board::{generate_legal_moves, Board, Square};
+use whitespine::board::{Board, Square, generate_legal_moves};
 use whitespine::search::{SearchResult, Searcher};
 use whitespine::tt::{MATE_SCORE, MAX_PLY, TranspositionTable};
 
@@ -64,7 +64,10 @@ fn finds_mate_in_1_queen() {
         "expected mate score, got {}",
         result.score
     );
-    assert!(!result.best_move.is_null(), "engine should have a best move");
+    assert!(
+        !result.best_move.is_null(),
+        "engine should have a best move"
+    );
 }
 
 #[test]
@@ -110,8 +113,14 @@ fn finds_winning_capture() {
 
 #[test]
 fn starting_position_has_valid_move() {
-    let result = search_to_depth("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1", 4);
-    assert!(!result.best_move.is_null(), "should find a move from starting position");
+    let result = search_to_depth(
+        "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+        4,
+    );
+    assert!(
+        !result.best_move.is_null(),
+        "should find a move from starting position"
+    );
 }
 
 #[test]
@@ -137,7 +146,10 @@ fn see_free_queen_capture_positive() {
     let board = Board::from_fen("4k3/8/8/3q4/4P3/8/8/4K3 w - - 0 1").unwrap();
     let mv = find_move(&board, Square::E4, Square::D5);
     let see = board.see(mv);
-    assert_eq!(see, 900, "PxQ (no defense) should give SEE = 900, got {see}");
+    assert_eq!(
+        see, 900,
+        "PxQ (no defense) should give SEE = 900, got {see}"
+    );
 }
 
 #[test]
@@ -151,7 +163,10 @@ fn see_bad_capture_queen_for_pawn_is_negative() {
         see < 0,
         "QxP defended by P should give negative SEE, got {see}"
     );
-    assert_eq!(see, -800, "QxP defended by P should give SEE = −800, got {see}");
+    assert_eq!(
+        see, -800,
+        "QxP defended by P should give SEE = −800, got {see}"
+    );
 }
 
 #[test]
@@ -171,7 +186,10 @@ fn see_free_pawn_capture_positive() {
     let board = Board::from_fen("4k3/8/8/3p4/4P3/8/8/4K3 w - - 0 1").unwrap();
     let mv = find_move(&board, Square::E4, Square::D5);
     let see = board.see(mv);
-    assert_eq!(see, 100, "PxP (no defense) should give SEE = 100, got {see}");
+    assert_eq!(
+        see, 100,
+        "PxP (no defense) should give SEE = 100, got {see}"
+    );
 }
 
 #[test]
@@ -180,7 +198,10 @@ fn see_rook_takes_knight_free_positive() {
     let board = Board::from_fen("4k3/8/8/3n4/8/8/8/3RK3 w - - 0 1").unwrap();
     let mv = find_move(&board, Square::D1, Square::D5);
     let see = board.see(mv);
-    assert_eq!(see, 300, "RxN (no defense) should give SEE = 300, got {see}");
+    assert_eq!(
+        see, 300,
+        "RxN (no defense) should give SEE = 300, got {see}"
+    );
 }
 
 #[test]
@@ -194,7 +215,10 @@ fn see_bad_rook_takes_pawn_defended_by_pawn_is_negative() {
         see < 0,
         "RxP defended by P should give negative SEE, got {see}"
     );
-    assert_eq!(see, -400, "RxP defended by P should give SEE = −400, got {see}");
+    assert_eq!(
+        see, -400,
+        "RxP defended by P should give SEE = −400, got {see}"
+    );
 }
 
 #[test]
@@ -206,7 +230,10 @@ fn see_xray_through_bishop() {
     let mv = find_move(&board, Square::C3, Square::D4);
     let see = board.see(mv);
     // BxP (no defense): SEE = 100.
-    assert_eq!(see, 100, "BxP with queen X-ray (undefended) SEE = 100, got {see}");
+    assert_eq!(
+        see, 100,
+        "BxP with queen X-ray (undefended) SEE = 100, got {see}"
+    );
 }
 
 // -----------------------------------------------------------------------
@@ -215,7 +242,10 @@ fn see_xray_through_bishop() {
 
 #[test]
 fn search_explores_nodes() {
-    let result = search_to_depth("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1", 5);
+    let result = search_to_depth(
+        "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+        5,
+    );
     assert!(
         result.nodes > 100,
         "depth-5 search should explore more than 100 nodes, got {}",
@@ -231,6 +261,7 @@ fn deeper_search_explores_more_nodes() {
     assert!(
         deep.nodes > shallow.nodes,
         "depth-5 ({}) should explore more nodes than depth-3 ({})",
-        deep.nodes, shallow.nodes
+        deep.nodes,
+        shallow.nodes
     );
 }
