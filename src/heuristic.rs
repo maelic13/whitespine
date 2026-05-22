@@ -58,13 +58,14 @@ impl Heuristic {
         }
     }
 
-    pub fn evaluate_result(&self, result: GameResult, color: Color) -> f64 {
+    pub fn evaluate_result(&self, result: GameResult, color: Color, depth_remaining: f64) -> f64 {
         /* Evaluate game result and return value in centi-pawns. */
+        let mate_distance = depth_remaining.max(0.);
         match (result, color) {
-            (GameResult::WhiteCheckmates, Color::White) => self.win_value,
-            (GameResult::WhiteCheckmates, Color::Black) => self.loss_value,
-            (GameResult::BlackCheckmates, Color::Black) => self.win_value,
-            (GameResult::BlackCheckmates, Color::White) => self.loss_value,
+            (GameResult::WhiteCheckmates, Color::White) => self.win_value + mate_distance,
+            (GameResult::WhiteCheckmates, Color::Black) => self.loss_value - mate_distance,
+            (GameResult::BlackCheckmates, Color::Black) => self.win_value + mate_distance,
+            (GameResult::BlackCheckmates, Color::White) => self.loss_value - mate_distance,
 
             (GameResult::Stalemate, _) => self.draw_value,
             (GameResult::DrawAccepted, _) => self.draw_value,
@@ -325,5 +326,23 @@ impl Heuristic {
             .abs()
             + (piece.get_file().to_index() as f64 - king.get_file().to_index() as f64).abs();
         14. / distance * bonus - bonus
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn checkmate_scores_prefer_shorter_mates() {
+        let heuristic = Heuristic::default();
+
+        let fast_win = heuristic.evaluate_result(GameResult::WhiteCheckmates, Color::White, 4.);
+        let slow_win = heuristic.evaluate_result(GameResult::WhiteCheckmates, Color::White, 1.);
+        assert!(fast_win > slow_win);
+
+        let fast_loss = heuristic.evaluate_result(GameResult::WhiteCheckmates, Color::Black, 4.);
+        let slow_loss = heuristic.evaluate_result(GameResult::WhiteCheckmates, Color::Black, 1.);
+        assert!(fast_loss < slow_loss);
     }
 }

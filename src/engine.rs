@@ -154,7 +154,7 @@ impl Engine {
             let result = game.result().unwrap();
             let color = game.side_to_move();
             return Ok((
-                self.heuristic.evaluate_result(result, color),
+                self.heuristic.evaluate_result(result, color, depth),
                 vec![],
                 nodes_searched,
             ));
@@ -222,7 +222,7 @@ impl Engine {
         if game.result().is_some() {
             let result = game.result().unwrap();
             let color = game.side_to_move();
-            return Ok((0.95 * self.heuristic.evaluate_result(result, color), 0));
+            return Ok((0.95 * self.heuristic.evaluate_result(result, color, 0.), 0));
         }
         if game.can_declare_draw() {
             return Ok((0.0, 0));
