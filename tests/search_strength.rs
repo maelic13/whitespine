@@ -1,4 +1,5 @@
 use whitespine::board::{Board, Move};
+use whitespine::eval::MATE_SCORE;
 use whitespine::search::{SearchEvent, SearchResult, Searcher};
 use whitespine::search_options::SearchOptions;
 
@@ -18,6 +19,18 @@ fn threaded_search_finds_fools_mate_in_one() {
 
     let result = search_at_depth_with_threads(board, 1, 2);
     assert_eq!(result.to_string(), "d8h4");
+}
+
+#[test]
+fn search_continues_to_resolve_shorter_mate() {
+    let board = Board::from_fen("4K3/2Q5/6k1/8/8/8/8/8 w - - 0 1").unwrap();
+
+    let result = search_result_at_depth_with_threads(board, 18, 1);
+
+    assert_eq!(result.depth, 18);
+    assert!(result.score >= MATE_SCORE - 9);
+    assert!(mate_in_from_score(result.score) <= 5);
+    assert!(!result.bestmove.is_null());
 }
 
 #[test]
@@ -81,4 +94,8 @@ fn search_at_depth_with_threads(board: Board, depth: usize, threads: usize) -> M
     options.engine.threads = threads;
     let result = searcher.search(board, &options, false, || SearchEvent::None);
     result.bestmove
+}
+
+fn mate_in_from_score(score: i32) -> i32 {
+    (MATE_SCORE - score.abs() + 1) / 2
 }

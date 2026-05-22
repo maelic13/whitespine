@@ -304,12 +304,13 @@ impl Searcher {
 
         for depth in 1..=max_depth {
             let previous_bestmove = bestmove;
-            let mut alpha = if depth >= 4 {
+            let use_aspiration = depth >= 4 && best_score.abs() < MATE_SCORE - MAX_PLY as i32;
+            let mut alpha = if use_aspiration {
                 best_score - 25
             } else {
                 -INF_SCORE
             };
-            let mut beta = if depth >= 4 {
+            let mut beta = if use_aspiration {
                 best_score + 25
             } else {
                 INF_SCORE
