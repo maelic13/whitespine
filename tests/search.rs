@@ -26,6 +26,10 @@ fn is_mate_score(score: i32) -> bool {
     score.abs() >= MATE_SCORE - MAX_PLY as i32
 }
 
+fn mate_in_from_score(score: i32) -> i32 {
+    (MATE_SCORE - score.abs() + 1) / 2
+}
+
 /// Find the first legal move from `from` to `to` in the given board.
 fn find_move(board: &Board, from: Square, to: Square) -> whitespine::board::Move {
     generate_legal_moves(board)
@@ -79,6 +83,20 @@ fn finds_mate_in_1_ladder() {
         "expected mate score, got {}",
         result.score
     );
+}
+
+#[test]
+fn continues_to_resolve_shorter_mate() {
+    let result = search_to_depth("4K3/2Q5/6k1/8/8/8/8/8 w - - 0 1", 18);
+
+    assert_eq!(result.depth, 18);
+    assert!(
+        result.score >= MATE_SCORE - 9,
+        "expected mate in 5 or better, got {}",
+        result.score
+    );
+    assert!(mate_in_from_score(result.score) <= 5);
+    assert!(!result.best_move.is_null());
 }
 
 // -----------------------------------------------------------------------

@@ -208,7 +208,7 @@ impl Searcher {
 
         let max_depth = depth_limit.min((MAX_PLY - 1) as u32).max(1);
         let mut best_move = Move::NULL;
-        let mut best_score = 0;
+        let mut best_score: i32 = 0;
         let mut best_pv = Vec::new();
         let mut completed_depth = 0u32;
         let mut stability = 0u32;
@@ -218,7 +218,10 @@ impl Searcher {
             let mut alpha = -INF_EVAL;
             let mut beta = INF_EVAL;
             let mut window = ASPIRATION_WINDOW;
-            if depth >= 4 && completed_depth > 0 {
+            if depth >= 4
+                && completed_depth > 0
+                && best_score.abs() < MATE_SCORE - MAX_PLY as i32
+            {
                 alpha = (best_score - window).max(-INF_EVAL);
                 beta = (best_score + window).min(INF_EVAL);
             }
