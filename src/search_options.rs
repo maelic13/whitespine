@@ -12,6 +12,8 @@ pub struct SearchOptions {
     pub black_time: usize,
     pub black_increment: usize,
     pub depth: f64,
+    pub infinite: bool,
+    pub ponder: bool,
 
     pub move_overhead: f64,
     pub threads: usize,
@@ -28,6 +30,8 @@ impl SearchOptions {
             black_time: 0,
             black_increment: 0,
             depth: f64::INFINITY,
+            infinite: false,
+            ponder: false,
 
             move_overhead: 10.,
             threads: 1,
@@ -104,9 +108,11 @@ impl SearchOptions {
     pub fn set_search_parameters(&mut self, args: &[String]) {
         self.reset_temporary_parameters();
 
+        self.ponder = args.iter().any(|r| r == "ponder");
         let infinite_index = args.iter().position(|r| r == "infinite");
         if infinite_index.is_some() {
             self.depth = f64::INFINITY;
+            self.infinite = true;
             return;
         }
 
@@ -208,5 +214,63 @@ impl SearchOptions {
         self.black_time = 0;
         self.black_increment = 0;
         self.depth = f64::INFINITY;
+        self.infinite = false;
+        self.ponder = false;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn args(parts: &[&str]) -> Vec<String> {
+        parts.iter().map(|part| (*part).to_string()).collect()
+    }
+
+    #[test]
+    fn go_parameters_parse_and_reset_ponder_and_infinite_flags() {
+        let mut options = SearchOptions::default();
+
+        options.set_search_parameters(&args(&["ponder", "wtime", "1000", "btime", "1000"]));
+        assert!(options.ponder);
+        assert!(!options.infinite);
+        assert_eq!(options.white_time, 1000);
+        assert_eq!(options.black_time, 1000);
+
+        options.set_search_parameters(&args(&["infinite"]));
+        assert!(options.infinite);
+        assert!(!options.ponder);
+
+        options.set_search_parameters(&args(&["depth", "3"]));
+        assert!(!options.infinite);
+        assert!(!options.ponder);
+        assert_eq!(options.depth, 3.0);
+    }
+
+    #[test]
+    fn supplied_illegal_game_final_positions_parse() {
+        let mut options = SearchOptions::default();
+
+        options.set_position(&args(&[
+            "fen",
+            "8/6K1/8/8/8/p7/P7/1k6",
+            "b",
+            "-",
+            "-",
+            "4",
+            "71",
+        ]));
+        assert_eq!(options.chess_game.side_to_move(), chess::Color::Black);
+
+        options.set_position(&args(&[
+            "fen",
+            "8/8/8/K3R3/3Q4/8/6p1/2k4q",
+            "w",
+            "-",
+            "-",
+            "26",
+            "91",
+        ]));
+        assert_eq!(options.chess_game.side_to_move(), chess::Color::White);
     }
 }

@@ -40,6 +40,7 @@ impl UciProtocol {
                 "isready" => self.is_ready(),
                 "go" => self.go(args),
                 "stop" => self.stop(),
+                "ponderhit" => self.ponderhit(),
                 "setoption" => self.set_option(args),
                 "ucinewgame" => self.new_game(),
                 "position" => self.position(args),
@@ -86,6 +87,12 @@ impl UciProtocol {
         self.sender
             .send(EngineCommand::stop())
             .expect("Stop command could not be sent.");
+    }
+
+    fn ponderhit(&mut self) {
+        self.sender
+            .send(EngineCommand::ponderhit())
+            .expect("Ponderhit command could not be sent.");
     }
 
     fn set_option(&mut self, args: &[String]) {

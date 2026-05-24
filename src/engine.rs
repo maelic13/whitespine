@@ -1,5 +1,6 @@
-use std::sync::mpsc::Receiver;
-use std::time::Instant;
+use std::sync::mpsc::{Receiver, TryRecvError};
+use std::thread;
+use std::time::{Duration, Instant};
 
 use chess::{Board, ChessMove, Color, Game, MoveGen, Piece, Square};
 
@@ -13,6 +14,9 @@ pub struct Engine {
     receiver: Receiver<EngineCommand>,
     timer: Option<Instant>,
     time_for_move: f64,
+    pondering: bool,
+    ponderhit_seen: bool,
+    bestmove_released: bool,
 }
 
 enum SearchControl {
@@ -33,6 +37,9 @@ impl Engine {
             receiver,
             timer: None,
             time_for_move: f64::INFINITY,
+            pondering: false,
+            ponderhit_seen: false,
+            bestmove_released: false,
         }
     }
 
@@ -48,40 +55,55 @@ impl Engine {
 
             if command.quit {
                 break;
-            } else if command.stop {
+            } else if command.stop || command.ponderhit {
                 continue;
             }
 
             self.start_timer(&command.search_options);
-            if self
-                .search(
-                    &command.search_options.chess_game,
-                    command.search_options.depth,
-                )
-                .should_quit()
-            {
+            if self.search(&command.search_options).should_quit() {
                 break;
             }
         }
     }
 
-    fn check_stop(&self) -> Result<(), SearchControl> {
+    fn check_stop(&mut self) -> Result<(), SearchControl> {
         match self.receiver.try_recv() {
-            Ok(command) if command.quit => Err(SearchControl::Quit),
-            Ok(command) if command.stop => Err(SearchControl::Stop),
-            _ if self.timer.unwrap().elapsed().as_millis() as f64 > self.time_for_move => {
+            Ok(command) if command.quit => {
+                self.bestmove_released = true;
+                Err(SearchControl::Quit)
+            }
+            Ok(command) if command.stop => {
+                self.bestmove_released = true;
                 Err(SearchControl::Stop)
             }
+            Ok(command) if command.ponderhit => {
+                self.ponderhit_seen = true;
+                self.pondering = false;
+                self.timer = Some(Instant::now());
+                Ok(())
+            }
+            Ok(_) => Ok(()),
+            Err(TryRecvError::Disconnected) => {
+                self.bestmove_released = true;
+                Err(SearchControl::Quit)
+            }
+            _ if self.timer_expired() => Err(SearchControl::Stop),
             _ => Ok(()),
         }
     }
 
-    fn search(&mut self, game: &Game, depth_limit: f64) -> SearchControl {
+    fn search(&mut self, search_options: &SearchOptions) -> SearchControl {
+        let game = &search_options.chess_game;
+        let depth_limit = search_options.depth;
         let start = Instant::now();
+        self.pondering = search_options.ponder;
+        self.ponderhit_seen = false;
+        self.bestmove_released = false;
 
         if game.result().is_some() || game.can_declare_draw() {
+            let control = self.wait_until_bestmove_allowed(search_options);
             println!("bestmove 0000");
-            return SearchControl::Stop;
+            return control;
         }
 
         // start with random move choice, to be used in case of timeout before first depth is reached
@@ -129,14 +151,71 @@ impl Engine {
             )
         }
 
+        if !self.bestmove_released {
+            let delayed_control = self.wait_until_bestmove_allowed(search_options);
+            if delayed_control.should_quit() {
+                control = delayed_control;
+            }
+        }
+
+        let bestmove = Self::legal_bestmove_or_fallback(&game.current_position(), &moves);
         println!(
             "bestmove {}",
-            moves
-                .first()
+            bestmove
                 .map(|chess_move| chess_move.to_string())
                 .unwrap_or_else(|| String::from("0000"))
         );
         control
+    }
+
+    fn wait_until_bestmove_allowed(&mut self, search_options: &SearchOptions) -> SearchControl {
+        if !search_options.ponder && !search_options.infinite {
+            return SearchControl::Stop;
+        }
+
+        while !(search_options.ponder && self.ponderhit_seen) {
+            match self.receiver.try_recv() {
+                Ok(command) if command.quit => return SearchControl::Quit,
+                Ok(command) if command.stop => return SearchControl::Stop,
+                Ok(command) if command.ponderhit => {
+                    self.ponderhit_seen = true;
+                    self.pondering = false;
+                    self.timer = Some(Instant::now());
+                    if search_options.ponder {
+                        return SearchControl::Stop;
+                    }
+                }
+                Ok(_) | Err(TryRecvError::Empty) => thread::sleep(Duration::from_millis(1)),
+                Err(TryRecvError::Disconnected) => return SearchControl::Quit,
+            }
+        }
+
+        SearchControl::Stop
+    }
+
+    fn timer_expired(&self) -> bool {
+        if self.pondering && !self.ponderhit_seen {
+            return false;
+        }
+        self.timer
+            .map(|timer| timer.elapsed().as_millis() as f64 > self.time_for_move)
+            .unwrap_or(false)
+    }
+
+    fn legal_bestmove_or_fallback(
+        board: &Board,
+        principal_variation: &[ChessMove],
+    ) -> Option<ChessMove> {
+        let legal_moves: Vec<ChessMove> = MoveGen::new_legal(board).collect();
+        if legal_moves.is_empty() {
+            return None;
+        }
+        if let Some(bestmove) = principal_variation.first()
+            && legal_moves.contains(bestmove)
+        {
+            return Some(*bestmove);
+        }
+        legal_moves.first().copied()
     }
 
     fn negamax(
@@ -388,5 +467,63 @@ impl Engine {
 
         scored_moves.sort_by(|a, b| b.1.cmp(&a.1));
         scored_moves.into_iter().map(|(mv, _)| mv).collect()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::str::FromStr;
+    use std::sync::mpsc::channel;
+
+    #[test]
+    fn bestmove_output_falls_back_to_a_legal_move() {
+        let board = Board::from_str("8/6K1/8/8/8/p7/P7/1k6 b - - 4 71").unwrap();
+        let illegal_for_position = ChessMove::from_str("e2e4").unwrap();
+
+        let bestmove = Engine::legal_bestmove_or_fallback(&board, &[illegal_for_position])
+            .expect("final position must have legal black moves");
+
+        assert_ne!(bestmove, illegal_for_position);
+        assert!(MoveGen::new_legal(&board).any(|legal| legal == bestmove));
+    }
+
+    #[test]
+    fn bestmove_output_is_0000_when_no_legal_move_exists() {
+        let board = Board::from_str("7k/5Q2/7K/8/8/8/8/8 b - - 0 1").unwrap();
+
+        assert!(Engine::legal_bestmove_or_fallback(&board, &[]).is_none());
+    }
+
+    #[test]
+    fn ponder_search_does_not_timeout_before_ponderhit() {
+        let (_sender, receiver) = channel();
+        let mut engine = Engine::new(receiver);
+        engine.timer = Some(Instant::now() - Duration::from_millis(50));
+        engine.time_for_move = 0.0;
+        engine.pondering = true;
+        engine.ponderhit_seen = false;
+
+        assert!(!engine.timer_expired());
+
+        engine.pondering = false;
+        engine.ponderhit_seen = true;
+        assert!(engine.timer_expired());
+    }
+
+    #[test]
+    fn ponderhit_resets_the_move_timer() {
+        let (sender, receiver) = channel();
+        let mut engine = Engine::new(receiver);
+        engine.timer = Some(Instant::now() - Duration::from_millis(50));
+        engine.time_for_move = 1.0;
+        engine.pondering = true;
+
+        sender.send(EngineCommand::ponderhit()).unwrap();
+
+        assert!(engine.check_stop().is_ok());
+        assert!(!engine.pondering);
+        assert!(engine.ponderhit_seen);
+        assert!(!engine.timer_expired());
     }
 }

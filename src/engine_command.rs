@@ -4,6 +4,7 @@ pub struct EngineCommand {
     pub search_options: SearchOptions,
     pub stop: bool,
     pub quit: bool,
+    pub ponderhit: bool,
 }
 
 impl EngineCommand {
@@ -12,6 +13,7 @@ impl EngineCommand {
             search_options: options,
             stop: false,
             quit: false,
+            ponderhit: false,
         }
     }
 
@@ -20,6 +22,7 @@ impl EngineCommand {
             search_options: SearchOptions::default(),
             stop: true,
             quit: false,
+            ponderhit: false,
         }
     }
 
@@ -28,6 +31,16 @@ impl EngineCommand {
             search_options: SearchOptions::default(),
             stop: true,
             quit: true,
+            ponderhit: false,
+        }
+    }
+
+    pub fn ponderhit() -> EngineCommand {
+        EngineCommand {
+            search_options: SearchOptions::default(),
+            stop: false,
+            quit: false,
+            ponderhit: true,
         }
     }
 }

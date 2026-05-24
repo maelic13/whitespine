@@ -13,7 +13,9 @@ supports the UCI protocol.
 - iterative-deepening negamax search with alpha-beta pruning
 - quiescence search, delta pruning, and basic move ordering
 - time management for standard UCI time controls
-- fixed-depth search and infinite analysis mode
+- fixed-depth search, infinite analysis mode, and ponder-safe `bestmove`
+  handling
+- final `bestmove` legality validation before output
 - standalone release binaries for Windows, macOS, and Linux
 
 ## Releases
