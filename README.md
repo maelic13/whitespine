@@ -1,10 +1,16 @@
 # Whitespine
 
+<p align="center">
+  <img src="logo/whitespine_detailed.png" alt="Whitespine logo" width="260">
+</p>
+
 Whitespine is a UCI-compatible chess engine written in Rust.
 It started as a Rust re-implementation of [Beast](https://github.com/maelic13/beast), but the projects have since diverged.
 
 Whitespine is only the engine. It does not include a graphical interface, so you should use it with a chess GUI that 
 supports the UCI protocol.
+
+---
 
 ## Features
 
@@ -16,6 +22,8 @@ supports the UCI protocol.
 - fixed-depth search and infinite analysis mode
 - standalone release binaries for Windows, macOS, and Linux
 
+---
+
 ## Releases
 
 - [Latest release](https://github.com/maelic13/whitespine/releases/latest)
@@ -26,6 +34,8 @@ Release assets include standalone executables for:
 - macOS (arm64)
 - Linux (x64 and arm64)
 
+---
+
 ## Requirements
 
 To use a release executable:
@@ -33,6 +43,8 @@ To use a release executable:
 
 To build from source:
 - Rust and Cargo
+
+---
 
 ## Use With A GUI
 
@@ -47,6 +59,8 @@ Tested GUIs:
 - Hiarcs Chess Explorer (Pro)
 
 Other GUIs that support UCI should also work, but they have not been tested.
+
+---
 
 ## Build From Source
 
@@ -65,6 +79,8 @@ For quick local testing you can also run:
 ```bash
 cargo run --release
 ```
+
+---
 
 ## License
 GPL-3.0-or-later. See [LICENSE](LICENSE).
