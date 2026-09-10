@@ -1,7 +1,7 @@
 # Whitespine
 
 <p align="center">
-  <img src="logo/whitespine_detailed.png" alt="Whitespine logo" width="260">
+  <img src="logo/detailed.png" alt="Whitespine logo" width="260">
 </p>
 
 Whitespine is a UCI-compatible chess engine written in Rust.
