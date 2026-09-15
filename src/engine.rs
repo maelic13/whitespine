@@ -100,7 +100,7 @@ impl Engine {
         while depth < depth_limit {
             depth += 1.;
 
-            let result = self.negamax(&game, depth, f64::NEG_INFINITY, f64::INFINITY);
+            let result = self.negamax(game, depth, f64::NEG_INFINITY, f64::INFINITY);
             match result {
                 Ok((eval, pv, nodes)) => {
                     evaluation = eval;
@@ -251,19 +251,18 @@ impl Engine {
         }
 
         let mut nodes_searched: usize = 0;
-        for (chess_move, is_capture, is_en_passant) in self.get_captures_and_checks(&game) {
-            if use_delta_pruning && is_en_passant && (evaluation + piece_value.pawn_value < alpha) {
-                continue;
-            } else if use_delta_pruning
-                && is_capture
-                && (evaluation
-                    + piece_value.get_piece_value(
-                        game.current_position()
-                            .piece_on(chess_move.get_dest())
-                            .unwrap(),
-                    )
-                    + piece_value.pawn_value
-                    < alpha)
+        for (chess_move, is_capture, is_en_passant) in self.get_captures_and_checks(game) {
+            if use_delta_pruning && is_en_passant && (evaluation + piece_value.pawn_value < alpha)
+                || use_delta_pruning
+                    && is_capture
+                    && (evaluation
+                        + piece_value.get_piece_value(
+                            game.current_position()
+                                .piece_on(chess_move.get_dest())
+                                .unwrap(),
+                        )
+                        + piece_value.pawn_value
+                        < alpha)
             {
                 continue;
             }
@@ -302,8 +301,11 @@ impl Engine {
         for chess_move in ordered_moves {
             let board_after_move = board.make_move_new(chess_move);
 
-            let captured_piece = board.piece_on(chess_move.get_dest()) != None;
-            let is_check = board_after_move.checkers().collect::<Vec<Square>>().len() != 0;
+            let captured_piece = board.piece_on(chess_move.get_dest()).is_some();
+            let is_check = !board_after_move
+                .checkers()
+                .collect::<Vec<Square>>()
+                .is_empty();
 
             let en_passant_capture = board.piece_on(chess_move.get_source()).unwrap()
                 == Piece::Pawn
@@ -331,7 +333,7 @@ impl Engine {
             search_options.black_time,
             search_options.black_increment,
         ) {
-            (_, 0, 0, 0, 0, 0) => return,
+            (_, 0, 0, 0, 0, 0) => (),
             (_, move_time, _, _, _, _) if move_time > 0 => {
                 self.time_for_move = move_time as f64;
             }
@@ -351,7 +353,7 @@ impl Engine {
                     - search_options.move_overhead)
                     .min(black_time as f64 - search_options.move_overhead);
             }
-            _ => return,
+            _ => (),
         }
     }
 
@@ -386,7 +388,7 @@ impl Engine {
             scored_moves.push((mv, score));
         }
 
-        scored_moves.sort_by(|a, b| b.1.cmp(&a.1));
+        scored_moves.sort_by_key(|a| std::cmp::Reverse(a.1));
         scored_moves.into_iter().map(|(mv, _)| mv).collect()
     }
 }

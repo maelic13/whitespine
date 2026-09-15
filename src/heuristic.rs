@@ -33,8 +33,8 @@ impl Heuristic {
     pub fn default() -> Heuristic {
         Heuristic {
             draw_value: 0.,       // [cp]
-            loss_value: -120_00., // [cp]
-            win_value: 120_00.,   // [cp]
+            loss_value: -12_000., // [cp]
+            win_value: 12_000.,   // [cp]
 
             pawn_rank_weight: 7.,
             pawn_file_weight: 5.,
@@ -177,7 +177,7 @@ impl Heuristic {
 
     fn _pawn_advantage_to_win_probability(pawn_advantage: f64) -> f64 {
         /* Calculate winning probability given pawn advantage. */
-        return 1. / (1. + (10_f64).powf(-pawn_advantage / 4.));
+        1. / (1. + (10_f64).powf(-pawn_advantage / 4.))
     }
 
     fn _win_probability_to_pawn_advantage(mut win_probability: f64) -> f64 {
@@ -283,12 +283,11 @@ impl Heuristic {
 
     fn king_bonus(&self, king: Square, opponent_king: Square, opponent_has_no_queens: bool) -> f64 {
         /* Evaluation bonus for positions of king on board. */
-        let king_center_weight: f64;
-        if opponent_has_no_queens {
-            king_center_weight = self.king_center_weight;
+        let king_center_weight: f64 = if opponent_has_no_queens {
+            self.king_center_weight
         } else {
-            king_center_weight = -self.king_center_weight;
-        }
+            -self.king_center_weight
+        };
 
         // occupying center bonus
         let mut k_bonus = Heuristic::occupying_center_bonus(king, king_center_weight);

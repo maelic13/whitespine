@@ -121,24 +121,24 @@ impl SearchOptions {
         let black_increment_index = args.iter().position(|r| r == "binc");
         let depth_index = args.iter().position(|r| r == "depth");
 
-        if move_time_index.is_some() {
-            self.move_time = Self::parse_usize(args, move_time_index.unwrap(), "movetime");
+        if let Some(move_time) = move_time_index {
+            self.move_time = Self::parse_usize(args, move_time, "movetime");
         }
 
-        if white_time_index.is_some() {
-            self.white_time = Self::parse_usize(args, white_time_index.unwrap(), "wtime");
+        if let Some(white_time) = white_time_index {
+            self.white_time = Self::parse_usize(args, white_time, "wtime");
         }
-        if white_increment_index.is_some() {
-            self.white_increment = Self::parse_usize(args, white_increment_index.unwrap(), "winc");
+        if let Some(white_increment) = white_increment_index {
+            self.white_increment = Self::parse_usize(args, white_increment, "winc");
         }
-        if black_time_index.is_some() {
-            self.black_time = Self::parse_usize(args, black_time_index.unwrap(), "btime");
+        if let Some(black_time) = black_time_index {
+            self.black_time = Self::parse_usize(args, black_time, "btime");
         }
-        if black_increment_index.is_some() {
-            self.black_increment = Self::parse_usize(args, black_increment_index.unwrap(), "binc");
+        if let Some(black_increment) = black_increment_index {
+            self.black_increment = Self::parse_usize(args, black_increment, "binc");
         }
-        if depth_index.is_some() {
-            self.depth = Self::parse_f64(args, depth_index.unwrap(), "depth");
+        if let Some(depth) = depth_index {
+            self.depth = Self::parse_f64(args, depth, "depth");
         }
     }
 
