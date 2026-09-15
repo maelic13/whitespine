@@ -180,7 +180,7 @@ look plausible; none was measured.
 - Free parameters: every linear parameter of the Phase 4 evaluation
   (`<n>`), king-danger weights through the chain rule (`<n>`); fixed and
   excluded: as listed in the fitting manifest `<sha256>` (5.3)
-- Start vector: the Stockfish 11 seeds of Phase 4 (4.15 head)
+- Start vector: the seeds of Phase 4 (4.15 head)
 - Settings: K `<value>` by golden-section search with parameters fixed; Adam,
   learning rate `<value>`, 300 epochs, full batch, 14 threads
 - **Prediction (frozen):** validation loss falls by at least `<value>`; the

@@ -2,11 +2,11 @@
 
 Whitespine is being rebuilt by its author, by hand, into a strong classical
 (hand-crafted evaluation) engine and later an NNUE engine. There are two goals
-of equal weight: **learn Rust and chess programming deeply**, and **end with an
-engine whose classical stage matches the end state Rarog is heading for before
-its NNUE work**. Every line of Whitespine code, and every script around it, is
-written by the maintainer. Coding agents may explain, review and edit this
-document; they do not write code.
+of equal weight: **learn Rust and chess programming deeply**, and **end with a
+classical engine that meets the target defined in "The target" below**, then a
+network engine that beats it. Every line of Whitespine code, and every script
+around it, is written by the maintainer. Coding agents may explain, review and
+edit this document; they do not write code.
 
 This file is the whole roadmap. The **Contents** below is the status board:
 tick a box when you judge the item done. Everything under it explains each
@@ -126,7 +126,7 @@ Rust toolchain: **1.98.1**, edition 2024. Chess960 is out of scope by decision.
     - [ ] **3.12.3** Pilot run that proves the pipeline
 - [ ] **3.13** Checkpoint and release 2.1.0
 
-### Phase 4 — The classical evaluation in Stockfish 11's shape
+### Phase 4 — The classical evaluation
 
 - [ ] **4.1** Evaluation architecture
     - [ ] **4.1.1** Value scale, piece values and seeds
@@ -186,7 +186,7 @@ Rust toolchain: **1.98.1**, edition 2024. Chess960 is out of scope by decision.
 - [ ] **5.5** Pending families after the fit
 - [ ] **5.6** SPSA of the nonlinear residue
 - [ ] **5.7** Search margin re-fit on the new evaluation
-- [ ] **5.8** Candidate terms beyond Stockfish 11
+- [ ] **5.8** Candidate terms beyond the core set
 - [ ] **5.9** Refit cycles
 - [ ] **5.10** Checkpoint and release 2.2.0
 
@@ -226,9 +226,9 @@ Rust toolchain: **1.98.1**, edition 2024. Chess960 is out of scope by decision.
 - [ ] **8.5** Final classical refit: evaluation, then search margins
 - [ ] **8.6** Classical checkpoint and release 3.0.0
 
-### Phase 9 — NNUE (network family shared with Rarog)
+### Phase 9 — NNUE
 
-- [ ] **9.1** Prerequisite: Rarog's network contract
+- [ ] **9.1** The network contract
 - [ ] **9.2** Board events for the accumulator
 - [ ] **9.3** Data generation at scale
 - [ ] **9.4** Training pipeline
@@ -241,19 +241,83 @@ Rust toolchain: **1.98.1**, edition 2024. Chess960 is out of scope by decision.
 
 ---
 
+## The target
+
+The classical Whitespine (release 3.0.0, end of Phase 8) is defined by what it
+can do, how it was built, and how its strength was established. Phases 0–8
+close the gap between 1.4.0 and this definition; Phase 9 builds on it.
+
+**What the engine has.**
+
+- **A board of its own**: bitboards, constant-time slider attacks, make and
+  unmake with a compact undo record, precomputed pins and checkers, static
+  exchange evaluation, and hash keys for the position, the pawns, the non-pawn
+  pieces and the material. Correctness proven by perft and by differential
+  testing against an independent implementation.
+- **A modern alpha-beta search**: principal variation search with node types,
+  a clustered transposition table with ageing, staged move ordering fed by
+  quiet, capture, continuation and pawn-structure histories, correction
+  histories that fix the static evaluation from search results, null move
+  pruning with verification, ProbCut, reverse futility, razoring, late move
+  reductions in fractional units, late move and futility and SEE pruning,
+  singular extensions with multi-cut and negative extensions, aspiration
+  windows, MultiPV and `searchmoves`.
+- **A complete hand-crafted evaluation**: tapered integer scores for material,
+  piece-square tables, material imbalance, pawn structure, mobility, piece
+  placement terms, king safety with a nonlinear danger model, threats, passed
+  pawns, space, initiative and endgame scale factors; an endgame library with
+  specialised evaluations, scaling functions and a KPK bitbase; every term
+  traced so it can be fitted.
+- **Every constant fitted, none guessed**: evaluation parameters fitted to
+  results of the engine's own games; nonlinear evaluation constants, search
+  margins and clock factors tuned by games; every change accepted by a
+  registered game test.
+- **Endgame tablebases**: Syzygy probing at the root (distance to zeroing) and
+  inside the search (win, draw, loss).
+- **A clock that never forfeits**: soft and hard limits, scaled by best-move
+  stability, effort and score trend; pondering; zero time losses across fast,
+  slow and repeating controls.
+- **Threads**: lazy SMP over a shared lock-free table, with a measured scaling
+  curve.
+- **A complete and robust protocol**: every `go` parameter, every option
+  validated, no lost command, no illegal or null move, no crash under a
+  scripted stress test or a long tournament.
+- **Instruments**: perft suites, a deterministic bench fingerprint, an SPRT
+  lab, an SPSA pipeline, a Texel tuner, a data generator, continuous
+  integration on three operating systems, and a release matrix of per-CPU-tier
+  profile-guided builds that all print one fingerprint.
+
+**How it was built.** By hand, feature by feature, each one measured: a
+behaviour-neutral change reproduces the bench fingerprint exactly; every other
+change is accepted or rejected by a registered game test whose prediction was
+written before the first game. Ideas come from the chess programming
+literature; the code and the constants are Whitespine's own.
+
+**How strong it is.** Strength is measured, never asserted. Every checkpoint
+plays a gauntlet against a reference ladder of opponents at known relative
+strength (0.7), so the rating history from 1.4.0 to 3.0.0 is a set of
+measurements against the same anchor. The ambition for 3.0.0 is the strength
+band of mature classical engines, which public rating lists place at roughly
+3,000 Elo and above at their standard controls; that band is represented in
+the ladder by its top tier and is reached when Whitespine's measured rating
+sits among that tier's engines. The checkpoint at 8.6 writes down where every
+accepted Elo came from, phase by phase, so the number has an explanation.
+
+**The network Whitespine** (release 4.0.0, end of Phase 9) replaces the
+hand-crafted evaluation with a neural network of its own design, trained only
+on data Whitespine itself generated, and beats 3.0.0 at short and long
+controls and at four threads.
+
 ## Where we start
 
-### Whitespine 1.4.0 against Rarog's classical end state
+### Whitespine 1.4.0 against the target
 
 Whitespine 1.4.0 (`bf06899` plus logo commits, 2026-09-14) is 1,158 lines in
 eight files. Everything chess-related is delegated to the `chess` crate 3.2.0:
-board, move generation, legality and game history. Rarog's target for the end
-of its classical stage is its PLAN Phases B–E: a Reckless-shaped search, a
-Stockfish-11-shaped evaluation refitted by Texel, Syzygy through Fathom, a
-two-bound clock, lazy SMP and a measured release pipeline. The comparison below
-is what Phases 0–8 of this plan close.
+board, move generation, legality and game history. The comparison below is what
+Phases 0–8 of this plan close.
 
-| Area | Whitespine 1.4.0 | Rarog's classical end state (target for Phase 8) |
+| Area | Whitespine 1.4.0 | Target end state (Phase 8) |
 |---|---|---|
 | Board | `chess` crate `Game`, rebuilt by replaying the whole game on every access | Own bitboards, magic and PEXT sliders, make/unmake with a compact undo record, pins and checkers, SEE, pawn/non-pawn/minor keys, threat maps |
 | Move generation | Legal moves collected into `Vec`, full board copy per move for check detection | Allocation-free lists, noisy/quiet/evasion generation, pseudo-legal validation for table moves, `gives_check` |
@@ -311,8 +375,7 @@ the source.
 
 ## Working rules
 
-These are the maintainer's rules for this plan. They are adapted from Rarog's,
-lighter where Rarog's exist only to control agents.
+These are the maintainer's rules for this plan.
 
 1. **Done means the maintainer says so.** Each item lists an end state and a
    suggested check; the judgement is yours. A tick is never a claim about
@@ -330,9 +393,10 @@ lighter where Rarog's exist only to control agents.
    and its bench signature, and copy it to the lab before the match. A stale
    binary is the most common way to measure nothing. Check a harness option is
    live by setting an absurd value and watching the numbers move.
-5. **One heavy job at a time on an idle host.** Rarog and Whitespine share
-   this machine. Before a match, check that nothing else is playing, building
-   or profiling; never build while a match runs.
+5. **One heavy job at a time on an idle host.** Other projects share this
+   machine. Before a match, check that nothing else is playing, building or
+   profiling; never build while a match runs. A match that ran on a loaded
+   host measures the load, not the engines.
 6. **Behaviour-neutral means an identical bench node count.** Refactors,
    renames and speed work must reproduce the node count exactly (2.5). A
    changed count is a behaviour change and needs a game test.
@@ -342,10 +406,10 @@ lighter where Rarog's exist only to control agents.
    stay clean.
 8. **The toolchain moves only between gates.** Never bump Rust between building
    a baseline and its candidate; a compiler change is its own measured event.
-9. **Donors teach, you write.** Read Rarog, Stockfish, Ethereal, Weiss,
-   Reckless and the Chess Programming Wiki for mechanisms and pitfalls, then
-   close them and write your own code. A constant taken from another engine is
-   a seed on another engine's scale, to be fitted, not a result.
+9. **Sources teach, you write.** Read the Chess Programming Wiki, papers and
+   open-source engines for mechanisms and pitfalls, then close them and write
+   your own code from the description in this plan. A constant taken from
+   anywhere else is a seed on someone else's scale, to be fitted, not a result.
 10. **Engine commits and document commits are separate.** Tag every SPRT
     baseline you might need again (for example `base/2.1.0` or `exp/ws-017`) so
     old binaries can be rebuilt without branches.
@@ -367,10 +431,12 @@ lighter where Rarog's exist only to control agents.
 | Repair of unknown sign | `[-5, 5]` | |
 
 **Time control.** 8+0.08 until 2.8, because the old engine and the first
-rewrite are not yet proven at fast controls. From 2.8 on, **3+0.03**, the
-control Rarog uses for SPRTs and SPSA, with long-control confirmations at
-**10+0.1**. If a later change produces time forfeits, the default returns to
-8+0.08 until they are fixed.
+rewrite are not yet proven at fast controls. From 2.8 on, **3+0.03** for SPRTs
+and SPSA, with long-control confirmations at **10+0.1**. A fast control plays
+several times more games per hour, which is what decides whether a
+few-Elo change can be resolved overnight; a long-control confirmation guards
+against changes that only help when the search is shallow. If a later change
+produces time forfeits, the default returns to 8+0.08 until they are fixed.
 
 All SPRTs: fastchess `model=normalized`, `alpha=0.05 beta=0.05`, paired
 openings (`-repeat`), one thread per engine, `-use-affinity`, concurrency 14,
@@ -531,20 +597,24 @@ the job fail; then delete the branch.
 **What.** A fixed place, outside the repository, where every game test runs
 the same way.
 
-**How.** fastchess 1.8.0 (the copy in `D:/code/rarog/tools/bin/fastchess.exe`
-or a fresh release download) plays UCI engines, runs SPRTs, writes PGN and
-checks protocol compliance. It does **not** speak xboard, which is why the
-xboard-only weak engines are excluded (0.7). Colosseum can replace fastchess
-once its command-line interface is ready; until then fastchess runs every test.
-Suggested layout:
+**How.** fastchess 1.8.0 (a release download) plays UCI engines, runs SPRTs,
+writes PGN and checks protocol compliance. It does **not** speak xboard, which
+is why xboard-only engines are excluded from the ladder (0.7). Another
+tournament manager with SPRT support may replace it later; until then
+fastchess runs every test. Suggested layout:
 
 ```text
 D:/chess/whitespine-lab/
   bin/        whitespine-2.0.0-dev-<sha>.exe, whitespine-1.4.0.exe, opponents
-  books/      UHO_Lichess_4852_v1.epd, SuperGM_4mvs.pgn, IM_4mvs.pgn (copies from Rarog)
+  books/      UHO_Lichess_4852_v1.epd, SuperGM_4mvs.pgn, IM_4mvs.pgn
   results/    one folder per experiment ID: PGN, log, command, binary hashes
   tuner/      weather-factory working folder (3.12)
 ```
+
+The books are public downloads: the UHO books are published by their author
+with the Lichess-derived openings, and the balanced 4-move books circulate
+with the common testing frameworks. Record each book's SHA-256 in the lab once
+and never edit a book file.
 
 UHO is an unbalanced-opening book: every opening gives one side an edge, and
 pairing (each opening played with both colours) turns that into sensitivity.
@@ -553,8 +623,8 @@ use a balanced book (`SuperGM_4mvs.pgn` or `IM_4mvs.pgn`), where UHO's edges
 would dominate the result.
 
 SPRT template (PowerShell; restated wherever a step needs it). The time
-control is 8+0.08 until 2.8 makes the engine ready for 3+0.03, Rarog's SPRT
-control, which is then the default:
+control is 8+0.08 until 2.8 makes the engine ready for 3+0.03, which is then
+the default:
 
 ```powershell
 & D:\chess\whitespine-lab\bin\fastchess.exe `
@@ -574,8 +644,8 @@ old engines):
 ```powershell
 & D:\chess\whitespine-lab\bin\fastchess.exe -tournament gauntlet `
   -engine cmd=D:\chess\whitespine-lab\bin\ws-candidate.exe name=Whitespine `
-  -engine cmd=D:\chess\engines\weak_engines\Saruman.exe name=Saruman `
-  -engine cmd=D:\chess\engines\beast-v4.0.0-windows-x64.exe name=Beast-4.0.0 `
+  -engine cmd=D:\chess\whitespine-lab\bin\opponent-a.exe name=opponent-a `
+  -engine cmd=D:\chess\whitespine-lab\bin\opponent-b.exe name=opponent-b `
   -each tc=10+0.1 `
   -openings file=D:\chess\whitespine-lab\books\SuperGM_4mvs.pgn format=pgn order=random `
   -repeat -rounds 100 -concurrency 14 -use-affinity `
@@ -730,30 +800,33 @@ names the fixed findings.
 can say how strong Whitespine is and a result against itself (SPRT) is never
 the only view.
 
-**How it is usually done.** Pick engines around your current strength, play a
-round robin or gauntlet, and compute ratings relative to **one** anchor (Ordo
-or BayesElo on the PGN, or fastchess's own report). Anchor exactly one engine:
-several anchors that disagree smear their disagreement over everything else
-(Rarog measured a 320-Elo spread between CCRL-anchored engines at a fast
-control). CCRL numbers do not transfer to a different time control.
+**How it is usually done.** Collect UCI engines spanning the strength range
+from below 1.4.0 to the target band, play round robins or gauntlets, and
+compute ratings relative to **one** anchor (Ordo or BayesElo on the PGN, or
+fastchess's own report). Anchor exactly one engine: several anchors that
+disagree smear their disagreement over everything else, and at fast controls
+engines anchored to a public list can disagree by hundreds of Elo. Public
+rating-list numbers are measured at other controls on other hardware and do
+not transfer; use them only to guess which tier an engine belongs to before it
+is measured.
 
-The UCI opponents available (probed 2026-09-14). The tier is a first guess from
-engine age and type; every checkpoint re-places engines by measurement.
+**The tiers.** A tier is a band of relative strength with a job in this plan.
+Which engines fill each tier is a measurement, recorded in `EXPERIMENTS.md` by
+0.7.1 and revised at every checkpoint; the plan itself names no opponent.
 
-| Tier | When used | Engines |
+| Tier | Job | What belongs there |
 |---|---|---|
-| 1 | Phase 0 baseline, gate of Phase 2 | ACE 0.1, ChessPuter, NSVChess 0.14, Saruman, Acqua 2.0 (`D:/chess/engines/weak_engines`); Beast 3.3.3, Beast 4.0.0; Whitespine 1.4.0 and 1.4.1 |
-| 2 | Checkpoint 3.13 | SaberTooth 0.2.0 and 0.3.0 (`D:/chess/engines/sabertooth/`), Hydra 1.1.2 / 1.4.1 / 1.5.0, Coco (pre-release), Lynx 1.0.1, Basilisk 1.2.3 |
-| 3 | Checkpoints 4.15, 5.10, 6.10 | Fruit 2.1, Lynx 1.3.3, Basilisk 1.5.0, Manta 1.0.0, Rarog 2.0.2 |
-| 4 | Checkpoints 6.10, 7.5 | Shredder 12 and 13, HIARCS 14, Junior Yokohama, Fritz 15, Rybka 3, Stockfish 1.9.1 and 2.3.1, Basilisk 1.9.3, Rarog 2.3.2 |
-| 5 | Classical target, 8.6 | Rarog 2.4.0 and later classical Rarog releases; Rybka 4, Fritz 16, Critter 1.6a, Houdini 3 (Rarog's own classical target pool) |
+| 1 | Phase 0 baseline, gate of Phase 2 | Engines around and below 1.4.0's strength: simple hobby engines, and Whitespine 1.4.0 and 1.4.1 themselves |
+| 2 | Checkpoint 3.13 | Engines a few hundred Elo above 1.4.0: early-generation hobby engines with a transposition table and basic pruning |
+| 3 | Checkpoints 4.15, 5.10, 6.10 | Mature amateur engines with a full classical evaluation |
+| 4 | Checkpoints 6.10, 7.5 | Commercial and open-source engines of the late 2000s and early 2010s |
+| 5 | Classical target, 8.6 | The strongest hand-crafted-evaluation engines: the band described in "The target" |
 
-Excluded: LaMoSca, hokpok 0.31, Mainsworthy, POS 1.20, RAM and Usurpator II
-speak only xboard, which neither fastchess nor Colosseum supports. Stockfish 11
-or 18 with `UCI_LimitStrength=true` and `UCI_Elo=<n>` can fill a gap between
-tiers as an opponent, but its Elo setting is calibrated for a different control
-and is not an anchor. `D:/chess/engines/sabertooth.exe` (0.2.0-alpha) is
-superseded by the two builds in the `sabertooth` folder.
+Every tier needs at least three engines so a single odd opponent cannot
+dominate a gauntlet. Engines that speak only xboard are excluded, since
+fastchess cannot run them. An engine with a strength-limiting option can fill a
+gap between tiers as an opponent, but its setting is calibrated for another
+control and is never the anchor.
 
 #### 0.7.1 Protocol and clock check of every candidate opponent
 
@@ -763,14 +836,17 @@ time at fast controls or mishandle `ucinewgame`; one that forfeits more than 1%
 of games at the chosen control or crashes is dropped or moved to a slower
 control.
 
-**End state.** A list of opponents that finish games cleanly at 10+0.1, each
-with its path, `id name` and SHA-256.
+**End state.** The ladder as a table in `EXPERIMENTS.md`: every opponent with
+its tier guess, path, `id name`, SHA-256, and the result of its compliance
+and clock check.
 
 #### 0.7.2 Tier-1 calibration round robin with Whitespine 1.4.0 and 1.4.1
 
 **How.** A round robin of Tier 1 with Whitespine 1.4.0 and 1.4.1, balanced
-book, 10+0.1, at least 100 games per pair, no adjudication. Choose one anchor
-(for example Beast 4.0.0 at 0) and compute ratings.
+book, 10+0.1, at least 100 games per pair, no adjudication. Choose one Tier-1
+engine as the anchor at 0 and compute ratings. The anchor stays the same for
+the life of the plan; when Whitespine outgrows Tier 1, later gauntlets are
+chained to it through engines that played in both.
 
 **End state.** A relative rating list with error bars; the places of 1.4.0 and
 1.4.1 in it.
@@ -1322,7 +1398,9 @@ impl std::ops::Deref for MoveList {
 
 Let the caller own the list (`fn generate(&self, list: &mut MoveList)`)
 instead of returning it: returning a 520-byte structure by value can cost a
-copy per call, which Rarog measured in its benchmarks.
+memory copy per call when the optimiser cannot construct it in place, and move
+generation runs at every node. Perft speed (1.8.4) shows whether it matters
+on your build.
 
 **Rust you will practise.** `Deref` to a slice (every slice method for free),
 `Default` for arrays, `debug_assert!`, out-parameters versus return values.
@@ -1641,8 +1719,10 @@ Most engines expose the threshold form `see_ge(mv, threshold) -> bool`, which
 stops as soon as the answer is known and is what pruning needs. Handle en
 passant (the victim is not on the destination), promotions (the piece changes
 value) and the king as an attacker (it may capture last only if nothing
-defends). Pinned attackers are the classic simplification: ignoring pins is
-common and cheap; Rarog found cases worth handling. Record your choice.
+defends). Pinned attackers are the classic simplification: a pinned piece
+cannot really take part in the exchange, but excluding it costs a pin test per
+attacker. Ignoring pins is common and cheap; handling them makes SEE right in
+a few tactical positions and is measurable by games. Record your choice.
 
 **End state.** `see_ge` with tests from a table of positions, moves, thresholds
 and expected answers, including x-rays, en passant, promotions and king
@@ -1836,9 +1916,11 @@ cleanly.
 #### 2.2.2 Clock and node checks
 
 **How.** Take `Instant::now()` when `go` is **parsed** on the UCI thread and
-pass it with the job; Rarog repaired time losses by moving its clock start
-there. The search checks the stop flag and the clock every 1,024 or 2,048
-nodes, not at every node.
+pass it with the job. The GUI's clock started when it sent `go`; any delay
+before the worker dequeues the job (a previous search finishing, a table being
+cleared) is already spent, and a clock started later than that is a hidden
+time overrun that shows up as forfeits at fast controls. The search checks the
+stop flag and the clock every 1,024 or 2,048 nodes, not at every node.
 
 ```rust
 fn should_stop(&mut self) -> bool {
@@ -2090,10 +2172,10 @@ README updated.
 
 ### 2.8 Fast-control readiness: SPRTs at 3+0.03
 
-**What.** Make the engine reliable at 3+0.03 with 14 concurrent games, the
-control Rarog uses for its SPRTs and SPSA, and move this plan's default to it.
-A shorter control plays about 2.5 times as many games per hour as 8+0.08, which
-matters once gains shrink and SPRTs need tens of thousands of games.
+**What.** Make the engine reliable at 3+0.03 with 14 concurrent games, and
+move this plan's default to it. A shorter control plays about 2.5 times as
+many games per hour as 8+0.08, which matters once gains shrink and SPRTs need
+tens of thousands of games.
 
 **How it is usually done.** At 3+0.03 an engine has about 75 ms per move early
 in a game and a 30 ms increment later. What breaks at such controls:
@@ -2106,8 +2188,9 @@ in a game and a 30 ms increment later. What breaks at such controls:
   nodes per second that is well under a millisecond.
 - **Minimum move time and overhead.** The budget of 2.4 must leave the
   `Move Overhead` (default 10 ms) plus a margin even when the increment is the
-  whole budget. Rarog measured that a larger overhead lost Elo; size the margin
-  from measured forfeits, not by fear.
+  whole budget. The overhead is thrown away on every move, so a generous one
+  costs measurable strength at a control where a move has 30–75 ms; size the
+  margin from measured forfeits, not by fear.
 - **`ucinewgame` cost.** Clearing a large table between games takes time; with
   `Hash=16` it is negligible, but measure it.
 - **Machine load.** 14 engines on 16 physical cores leave room for fastchess;
@@ -2117,7 +2200,7 @@ in a game and a 30 ms increment later. What breaks at such controls:
 concurrency 14, `-use-affinity`, with **zero** time forfeits and no latency
 warnings, recorded in `EXPERIMENTS.md`; from here on every SPRT and SPSA runs
 at 3+0.03 unless its registration says otherwise, with long-control
-confirmations at 10+0.1 as in Rarog. If forfeits appear later (after 7.1 or a
+confirmations at 10+0.1. If forfeits appear later (after 7.1 or a
 new feature), the default returns to 8+0.08 until they are fixed.
 
 ```powershell
@@ -2642,9 +2725,10 @@ calls fastchess) reads three files in its folder. `config.json` is printed by
 3.12.1. `cutechess.json` names the engine, book and match settings (`tc` is in
 seconds and the increment is `tc/100`, so `3` means 3+0.03, the same control as
 the SPRTs). `spsa.json` holds the SPSA constants; set `A` to about a tenth of
-the planned iterations. The copy in `D:/chess/weather-factory` passes no
-adjudication options, which matches this plan's policy; it also passes no
-`-use-affinity`. Colosseum's command-line interface can replace it when ready.
+the planned iterations. Read the driver's source once to see exactly which
+options it passes to fastchess: it should pass no adjudication options (this
+plan's policy) and you should know whether it pins affinity, because the
+tuning games then run under slightly different conditions from the SPRTs.
 
 ```json
 {
@@ -2696,29 +2780,30 @@ for every Phase 3 prediction.
 
 ---
 
-## Phase 4 — The classical evaluation in Stockfish 11's shape
+## Phase 4 — The classical evaluation
 
-**What this phase builds.** A complete, mature hand-crafted evaluation with
-the structure of Stockfish 11, the last and strongest classical Stockfish:
-material and piece-square tables, material imbalance, pawn structure, mobility,
-piece placement, king safety, threats, passed pawns, space, initiative, scale
-factors and an endgame library with a KPK bitbase. Rarog's evaluation targets
-the same shape (its PLAN Phase C). It will be replaced by a network in Phase 9;
-the point is to understand how a strong evaluation is built, what it knows and
-why each part exists.
+**What this phase builds.** A complete, mature hand-crafted evaluation of the
+kind the strongest classical engines converged on: material and piece-square
+tables, material imbalance, pawn structure, mobility, piece placement, king
+safety, threats, passed pawns, space, initiative, scale factors and an endgame
+library with a KPK bitbase. That design is well documented in the chess
+programming literature, and its families are described one by one below. It
+will be replaced by a network in Phase 9; the point is to understand how a
+strong evaluation is built, what it knows and why each part exists.
 
 **How a classical evaluation is created.** The same loop for every family:
 
 1. **Understand the chess idea** and the exact definition: which squares, which
    pieces, what counts as "safe", "weak" or "passed".
 2. **Build the inputs once and share them.** Most families read the same
-   attack maps, pawn information and king zone. Stockfish computes them in a
-   fixed order so each family can reuse what earlier ones produced.
-3. **Seed the values.** Hand-crafted evaluations start from human judgement or
-   from another engine's values, then are fitted. This plan seeds from
-   Stockfish 11 converted to Whitespine's scale (4.1.1): its values were tuned
-   together, so taken together on one consistent scale they are a sensible
-   starting point.
+   attack maps, pawn information and king zone. Compute them in a fixed order
+   (4.3.1) so each family can reuse what earlier ones produced.
+3. **Seed the values.** A seed is a starting value on Whitespine's scale
+   (4.1.1), chosen so the term has the right sign and a plausible size; it is
+   not a result. Seed from chess judgement and from the published values in
+   the literature, and keep the seeds of one family consistent with each other,
+   because a family whose terms are on different scales fights itself before
+   the tuner ever sees it.
 4. **Trace every parameter** so the tuner in Phase 5 can fit it.
 5. **Test**: activation on hand-picked positions (the term fires where it
    should and not elsewhere), colour symmetry, trace reconstruction.
@@ -2731,18 +2816,17 @@ changes what mobility should hold). The whole surface is fitted once, in Phase
 5, when it is complete.
 
 **Families that do not pass with seeds.** A seeded family may fail its SPRT
-because its seeds suit Stockfish 11's search and not yours. If its activation,
-symmetry and reconstruction tests are clean, do not delete it: mark it
-**pending**, disable it with one constant, record it in `EXPERIMENTS.md`, and
-move on. Phase 5 fits it with everything else and decides it (5.5). A family
-with a failing test is a bug, not a pending family.
+because its seeds are the wrong size for this search, not because the idea is
+wrong. If its activation, symmetry and reconstruction tests are clean, do not
+delete it: mark it **pending**, disable it with one constant, record it in
+`EXPERIMENTS.md`, and move on. Phase 5 fits it with everything else and
+decides it (5.5). A family with a failing test is a bug, not a pending family.
 
-**How to read Stockfish 11.** The source is in the local repository:
-`git -C D:/code/stockfish show sf_11:src/evaluate.cpp` (also `pawns.cpp`,
-`material.cpp`, `endgame.cpp`, `psqt.cpp`, `bitbase.cpp`). Read a family there,
-close it, write your own version from the description in this plan, then
-compare. Rarog's `src/eval.rs` is a Rust implementation of a related design;
-read it only after writing yours.
+**How to work on a family.** Read the description here and the Chess
+Programming Wiki page for the idea; write your version; test it. If you then
+want to compare with an open-source implementation, do it after yours exists,
+and treat any difference as a question ("why did they do that?") rather than
+as a correction.
 
 **Rust you will practise.** Organising a large module tree, `const` tables and
 masks, small caches indexed by hash keys, `enum` dispatch instead of virtual
@@ -2756,30 +2840,38 @@ evaluation.
 
 #### 4.1.1 Value scale, piece values and seeds
 
-**What.** Decide the unit of every evaluation number, and how Stockfish 11's
-values become seeds in that unit.
+**What.** Decide the unit of every evaluation number, and how seeds from any
+source enter that unit.
 
-**How.** Stockfish 11 works in internal units where a pawn is 128 in the
-middlegame and 213 in the endgame, and reports centipawns as
-`value × 100 / 213`. Whitespine's search margins (Phase 3) are already in
-centipawns, so keep centipawns internally and convert every seed once:
+**How.** Whitespine's search margins (Phase 3) are already in centipawns, so
+keep centipawns internally, defined as **an endgame pawn = 100**. The
+definition matters: piece values differ between middlegame and endgame, and a
+scale needs one fixed point. Everything the search compares against the
+evaluation (futility margins, aspiration deltas, the mate range) is then in the
+same unit.
 
-```rust
-/// Converts a Stockfish 11 internal value to Whitespine centipawns (a pawn in the endgame = 100).
-const fn from_sf11(v: i32) -> i16 {
-    let scaled = v * 100;
-    (if scaled >= 0 { (scaled + 106) / 213 } else { (scaled - 106) / 213 }) as i16
-}
-```
+Seed the material from the classical values every chess player knows, with
+the middlegame pawn a little below 100 (a pawn matters less while pieces
+dominate) and pieces a little more valuable in the endgame:
 
-Converted material: pawn 60/100, knight 367/401, bishop 387/430, rook 599/648,
-queen 1192/1259 (middlegame/endgame). Very small Stockfish terms round to 0–3
-cp; that is acceptable for seeds, because Phase 5 refits everything. King
-danger (4.6.2) is accumulated in Stockfish's own "danger units" and only the
-final penalty is converted.
+| Piece | Middlegame | Endgame |
+|---|---|---|
+| Pawn | 80–90 | 100 |
+| Knight | 320 | 330 |
+| Bishop | 330 | 350 |
+| Rook | 500 | 540 |
+| Queen | 950 | 1,000 |
 
-**End state.** The conversion function, the material constants, and a note in
-the evaluation module stating the unit.
+These are seeds; Phase 5 refits them, and the refit usually moves the minor
+pieces and the rook noticeably. If you take a seed for any term from a
+published source that uses another unit, convert it through **one** function
+in **one** place and never write a converted number inline; a scale mixed by
+hand is the hardest evaluation bug to find. Very small terms rounding to a few
+centipawns is acceptable for seeds.
+
+**End state.** The material constants, the unit stated in a comment at the
+top of the evaluation module, and a single conversion function if any seed
+needed one.
 
 #### 4.1.2 Tapered score type and game phase
 
@@ -2815,9 +2907,13 @@ impl std::ops::Add for S {
 The `+ 0x8000` in `eg()` corrects for the borrow a negative middlegame half
 takes from the upper half; test negative halves before trusting it.
 
-Stockfish 11's phase is continuous: total non-pawn material clamped between an
-endgame limit and a middlegame limit (1,838 and 7,163 cp after conversion),
-mapped linearly to 0–128. The endgame half is also multiplied by a **scale
+Make the phase continuous rather than a few discrete stages: total non-pawn
+material, clamped between an endgame limit and a middlegame limit, mapped
+linearly to 0–128. Seed the middlegame limit near the non-pawn material of a
+full board minus a minor piece (about 6,000 cp on the values above) and the
+endgame limit near a rook plus a minor piece (about 1,500 cp); between them
+the evaluation slides smoothly from one set of values to the other, so a
+trade never causes a jump. The endgame half is also multiplied by a **scale
 factor** (4.12) out of 64 before interpolation:
 
 ```rust
@@ -2896,8 +2992,8 @@ perft suite and random games.
 
 #### 4.1.5 The `eval` breakdown command
 
-**What.** Stockfish's `eval` prints a table: one row per family, White's and
-Black's middlegame and endgame contribution, and the total. It is how you
+**What.** An `eval` command that prints a table: one row per family, White's
+and Black's middlegame and endgame contribution, and the total. It is how you
 debug and understand the evaluation: set up a position, predict which families
 matter, compare with the table.
 
@@ -2920,34 +3016,45 @@ type a table of 64 tapered values saying where the piece likes to stand.
 
 #### 4.2.1 Incrementally updated material and piece-square score
 
-**How it is usually done.** Stockfish keeps one packed score in the position:
+**How it is usually done.** Keep one packed score in the position:
 `material + table value` for every piece, added in `add_piece`, subtracted in
 `remove_piece`, both in `move_piece`. The evaluation reads it instead of
-looping over pieces. Keep the non-pawn material per colour the same way; the
-phase and many families need it.
+looping over pieces, which makes the cheapest part of the evaluation free at
+every node. Keep the non-pawn material per colour the same way; the phase and
+many families need it.
 
 **End state.** `Board::psq_score()` and `non_pawn_material(color)` maintained
 by the piece primitives and checked in `validate()` (1.3.3).
 
 #### 4.2.2 Table shape and seeds
 
-**How.** Stockfish 11 stores piece tables for files a–d only and mirrors them
-to e–h (pieces are assumed left-right symmetric), and pawn tables for all
-eight files (pawn placement is not symmetric: castled kings and flank
-majorities differ). Black's values are White's mirrored vertically with the
-sign flipped. Seed from `psqt.cpp` through `from_sf11`, then replace 1.4.0's
-heuristic completely.
+**How.** Store piece tables for files a–d only and mirror them to e–h (piece
+placement is assumed left-right symmetric, which halves the parameter count
+the tuner must fit), and pawn tables for all eight files (pawn placement is
+not symmetric: castled kings and flank majorities differ). Black's values are
+White's mirrored vertically with the sign flipped, so one table serves both
+colours and symmetry is guaranteed by construction.
+
+Seed the shapes from chess knowledge, tapered: knights and bishops toward the
+centre and away from the rim; rooks to the seventh rank and open files in the
+middlegame, less in the endgame; the queen slightly toward the centre; the
+king to the castled corners in the middlegame and toward the centre in the
+endgame; pawns rewarded for advancing far more in the endgame than in the
+middlegame, with central pawns preferred on the fourth rank and edge pawns
+neutral. Seed magnitudes of a few tens of centipawns; the tuner will reshape
+every table.
 
 **End state.** The 1.4.0 heuristic deleted; material and tables seeded, traced,
 symmetric; SPRT `[0, 10]` against the Phase 3 head (the evaluation half of the
-engine is replaced here). The tempo bonus (Stockfish 11: 28 internal units, 13
-cp) is added to the side to move's evaluation in the same step.
+engine is replaced here). A **tempo bonus** for the side to move (seed 10–15
+cp: having the move is worth something, and it keeps odd and even depths
+from disagreeing) is added in the same step.
 
 ### 4.3 Evaluation pipeline and caches
 
 #### 4.3.1 Evaluation order and the lazy exit
 
-**What.** The order in which Stockfish 11 evaluates, which is also the order in
+**What.** The order in which the evaluation runs, which is also the order in
 which this phase builds the families, because later families read what earlier
 ones computed.
 
@@ -2971,8 +3078,9 @@ evaluate(position)                     [never called when in check]
 ```
 
 **The lazy exit.** When material and pawns alone put the score far outside
-any interesting range (Stockfish 11: 1,400 internal units plus non-pawn
-material / 64), the rest of the evaluation cannot change the outcome of the
+any interesting range (a threshold of several pawns, growing a little with the
+material on the board because more pieces mean the remaining families can
+swing further), the rest of the evaluation cannot change the outcome of the
 search, so it returns early and saves time. It changes behaviour slightly, and
 it must be disabled while tracing for the tuner.
 
@@ -3052,9 +3160,9 @@ pinned pieces.
 
 ### 4.4 Pawn structure
 
-**What.** The pawn skeleton decides plans, weaknesses and endgames. Stockfish
-11 scores every pawn once (cached in the pawn table) from a handful of
-relations to the pawns around it.
+**What.** The pawn skeleton decides plans, weaknesses and endgames. Score
+every pawn once (cached in the pawn table) from a handful of relations to the
+pawns around it.
 
 **How it is usually done.** For each pawn on square `s` with relative rank `r`:
 
@@ -3172,8 +3280,6 @@ together with 4.5.2–4.5.3 or separately.
 - **Long diagonal bishop**: a bonus when the bishop sees both central squares
   of a long diagonal through pawns.
 
-(Stockfish 11's cornered-bishop term exists only for Chess960 and is skipped.)
-
 #### 4.5.3 Rooks and queens
 
 **What.**
@@ -3195,9 +3301,9 @@ together with 4.5.2–4.5.3 or separately.
 ### 4.6 King safety
 
 **What.** The most valuable classical family and the most nonlinear: one
-attacker near the king means little, three together can be decisive.
-Stockfish 11 combines a pawn-shelter score (cached per king square) with a
-**king danger** sum converted by a square law.
+attacker near the king means little, three together can be decisive. Combine
+a pawn-shelter score (cached per king square) with a **king danger** sum
+converted by a square law.
 
 #### 4.6.1 Pawn shelter and storm
 
@@ -3239,44 +3345,55 @@ your convention once and test it on both colours.)
 
 #### 4.6.2 King danger
 
-**How it is usually done.** Sum danger units for the king of side `us`, from
-the enemy's point of view:
+**How it is usually done.** Accumulate **danger units** for the king of side
+`us`, from the enemy's point of view. Danger units are their own scale, not
+centipawns: the sum is converted at the end. Each component is a count times
+a weight parameter:
 
-- **Attackers**: `attackers count × attackers weight` from the piece loop
-  (Stockfish 11 weights: knight 81, bishop 52, rook 44, queen 10).
+- **Attackers**: `attackers count × attackers weight`, both from the piece
+  loop. The weight is per piece type; seed minors highest, the rook lower and
+  the queen lowest, because a queen's danger is mostly counted through the
+  safe-check terms below and would otherwise be counted twice.
 - **Weak ring squares**: squares in the king ring attacked by the enemy, not
-  defended twice by us, and either undefended or defended by our king or queen
-  (185 each).
+  defended twice by us, and either undefended or defended only by our king or
+  queen (a defender that cannot afford to recapture).
 - **Safe checks**: for each enemy piece type, whether it can give check next
-  move from a square that is not attacked by us, or is attacked only weakly and
-  doubly attacked by the enemy. One bonus per piece type if any such square
-  exists (rook 1,080, queen 780, bishop 635, knight 790); queen checks count
-  only on squares where no rook check is possible, bishop checks only where no
-  queen check is.
-- **Unsafe checks**: checking squares that are defended (148 per square).
-- **Blockers for our king** (98 each): pinned pieces and potential discovered
-  checks.
-- **Attacks next to the king** (69 per attacked adjacent square).
-- **Flank attacks**: `3 × attacks² / 8`, where attacks count enemy attacks on
-  our king flank within our camp, doubly attacked squares counted twice.
-- **Mobility difference**: the middlegame mobility of the enemy minus ours.
-- Reductions: no enemy queen (−873), an own knight defending next to the king
-  (−100), the middlegame shelter score (−6/8 of it), each own defended flank
-  square (−4); a constant (+37).
+  move from a square that is not attacked by us, or is attacked only weakly
+  and doubly attacked by the enemy. One weight per piece type if any such
+  square exists. Seed these as the heaviest units by far, several times an
+  attacker's weight: a safe check is a concrete threat next move. Count queen
+  checks only on squares where no rook check is possible and bishop checks only
+  where no queen check is, so one square is not counted as three checks.
+- **Unsafe checks**: checking squares that are defended; a small weight per
+  square, because the check can still disrupt.
+- **Blockers for our king**: pinned pieces and potential discovered checks.
+- **Attacks next to the king**: one small weight per attacked adjacent square.
+- **Flank attacks**: proportional to the *square* of the number of enemy
+  attacks on our king flank within our camp (doubly attacked squares counted
+  twice): a flank under sustained attack is worse than the sum of the attacks.
+- **Mobility difference**: the middlegame mobility of the enemy minus ours; a
+  side with more active pieces attacks better.
+- **Reductions**: a large one when the enemy has no queen (most mating attacks
+  need her), one for an own knight defending next to the king, a share of the
+  middlegame shelter score, and a small one per own defended flank square; and
+  a constant offset that sets where "no danger" sits.
 
-Then convert, only when the total is positive enough:
+Then convert, only when the total exceeds a threshold, with a **square law**
+in the middlegame and a linear term in the endgame:
 
 ```rust
-if danger > 100 {
+if danger > params.danger_threshold {
     score -= S::new(
-        from_sf11(danger * danger / 4096),
-        from_sf11(danger / 16),
+        (danger * danger / params.danger_mg_divisor) as i16,
+        (danger / params.danger_eg_divisor) as i16,
     );
 }
 ```
 
 The square law is the point: two moderate factors together cost far more than
-twice one of them.
+twice one of them, which is how mating attacks work. The divisors set the
+scale between danger units and centipawns; they and the weights are all seeds,
+and the tuner fits the weights through the square (5.2.4).
 
 #### 4.6.3 Flank terms
 
@@ -3340,18 +3457,22 @@ grows steeply with rank.
 
 - **Rank bonus** from a table (steeply growing: the seventh-rank bonus is many
   times the fourth).
-- From rank 4 on, with weight `w = 5r − 13`, measured at the *block square*
-  (the square in front):
-  - **King proximity**: add the enemy king's distance (capped at 5) × 19/4 and
-    subtract the own king's distance × 2, both × `w`, endgame only; also
-    subtract the own king's distance to the square after that.
+- From rank 4 on, with a **rank weight** `w` that grows linearly with the rank
+  (a far-advanced passer's surroundings matter far more than a distant one's),
+  measured at the *block square* (the square in front):
+  - **King proximity**: add the enemy king's distance to the block square
+    (capped) times a parameter and subtract our king's distance times a
+    smaller one, both scaled by `w`, endgame only; also subtract our king's
+    distance to the square after that, so the king is drawn along the pawn's
+    path.
   - **Free path**: if the block square is empty, look at the squares up to
-    promotion and the passed-pawn span. With no attacked squares on the span
-    `k = 35`; if the path to promotion is not attacked `k = 20`; if only the
-    block square is safe `k = 9`; else 0. An enemy rook or queen behind the
-    pawn makes all span squares count as attacked. Add 5 when the block square
-    is defended or an own rook or queen stands behind. Bonus `k × w` to both
-    halves.
+    promotion and the passed-pawn span. Use one of three bonus levels: the
+    largest when no square of the span is attacked, a middle one when only the
+    path to promotion is safe, the smallest when only the block square is
+    safe, else nothing. An enemy rook or queen behind the pawn makes every span
+    square count as attacked (it x-rays through the pawn as it advances). Add a
+    small extra when the block square is defended or an own rook or queen
+    stands behind. Bonus `level × w` to both halves.
 - **Candidate halving**: if the pawn would not be passed after one push, or a
   pawn stands directly in front, halve the bonus.
 - **Passed file**: a small penalty growing toward the centre files (edge
@@ -3361,11 +3482,11 @@ grows steeply with rank.
 let block = s + up;
 let mut bonus = params.passed_rank[r];
 if r >= 3 {
-    let w = 5 * r as i32 - 13;
-    let eg = (king_distance(them_king, block).min(5) * 19 / 4
-        - king_distance(our_king, block).min(5) * 2) * w;
+    let w = params.passed_weight_slope * r as i32 - params.passed_weight_offset;
+    let eg = (king_distance(them_king, block).min(5) * params.passed_their_king
+        - king_distance(our_king, block).min(5) * params.passed_our_king) * w;
     bonus += S::new(0, eg as i16);
-    // ... second push, free path k, defended block square ...
+    // ... second push, free path level, defended block square ...
 }
 ```
 
@@ -3379,12 +3500,14 @@ pawn, a blockaded passer, a passer with the enemy king in front); SPRT
 **What.** In the opening and middlegame, controlling safe squares behind one's
 pawn chain in the centre gives pieces room.
 
-**How it is usually done.** Only while non-pawn material is high (Stockfish
-11: 12,222 internal units, 5,738 cp). Count safe squares in the centre files
-on the own second to fourth ranks (not own pawns, not attacked by enemy
-pawns); count a safe square a second time when it is up to three squares
-behind an own pawn and no enemy piece attacks it. Multiply by
-`(own piece count − 1)²` and divide by 16; middlegame only.
+**How it is usually done.** Only while non-pawn material is high (a threshold
+near the material of a full board, so the term switches off once trades
+begin; space no longer matters when there are few pieces to use it). Count
+safe squares in the centre files on the own second to fourth ranks (not own
+pawns, not attacked by enemy pawns); count a safe square a second time when it
+is up to three squares behind an own pawn and no enemy piece attacks it.
+Multiply by the square of the own piece count (space is worth more the more
+pieces can use it) and divide by a constant; middlegame only.
 
 **End state.** Space traced (its parameter is the multiplier; trace the
 computed count × weight² / 16); SPRT `[0, 5]`.
@@ -3430,20 +3553,32 @@ how *winnable* the position is for the side that is ahead: many pawns, pawns on
 both flanks, passed pawns and active kings make an advantage count; symmetrical
 pawns on one flank make it drawish.
 
-**How it is usually done.** *Complexity* = `9 × passed pawns + 11 × pawns +
-9 × outflanking + 12 × infiltration + 21 × pawns on both flanks + 51 × (no
-non-pawn material) − 43 × almost unwinnable − 100`, where outflanking is the
-king file distance minus the king rank distance, infiltration means a king has
-crossed into the enemy half, and almost unwinnable means no passed pawns,
-negative outflanking and pawns on one flank only. Apply it in the direction of
-the current advantage, capped so it never flips the sign of either half:
+**How it is usually done.** Compute a *complexity* score as a weighted sum of
+features that make a position winnable, minus a constant:
+
+| Feature | Why it counts |
+|---|---|
+| number of passed pawns | a passer is a concrete way to win |
+| number of pawns | more pawns, more play; pawnless positions are drawish |
+| outflanking (king file distance minus king rank distance) | kings far apart on the files leave room for a decisive king march |
+| infiltration (a king has crossed into the enemy half) | an active king in an endgame is a winning factor |
+| pawns on both flanks | play on two wings stretches the defence |
+| no non-pawn material | pure pawn endings are decided by tempo and are rarely drawn by fortress |
+| almost unwinnable (no passers, negative outflanking, pawns on one flank only) | a large negative weight: the classic drawn structure |
+
+Each weight is a parameter. Apply the complexity in the direction of the
+current advantage, capped so it never flips the sign of either half: it can
+say "this advantage is worth less" but never "the other side is better".
 
 ```rust
 let sign = |x: i32| (x > 0) as i32 - (x < 0) as i32;
-let u = sign(mg) * (complexity + 50).min(0).max(-mg.abs());
+let u = sign(mg) * (complexity + params.initiative_mg_offset).min(0).max(-mg.abs());
 let v = sign(eg) * complexity.max(-eg.abs());
 score += S::new(u as i16, v as i16);
 ```
+
+The middlegame half is only ever reduced, and mildly; the endgame half can be
+raised or reduced, because winnability is an endgame concept.
 
 **End state.** Initiative with its inputs traced (5.2.4 decides how it is
 fitted); activation tests; SPRT `[0, 5]`.
@@ -3457,17 +3592,20 @@ drawish".
 **How it is usually done.**
 
 - **From material** (material table): a side with no pawns whose non-pawn
-  material advantage is at most a bishop cannot win by force: factor 0 if it
-  has less than a rook's material, 4 if the other side has at most a bishop,
-  else 14.
+  material advantage is at most a bishop cannot win by force: a factor near
+  zero if it has less than a rook's worth of material, small if the other side
+  has at most a bishop, moderate otherwise (a rook against a minor still has
+  practical chances).
 - **From specialised scaling functions** (4.14.5), when one exists for the
   material.
 - **Generic** (only when nothing specific applied): opposite-coloured bishops
-  as the only pieces give 22; otherwise the factor is capped at
-  `36 + 7 × own pawns` (`36 + 2 × own pawns` with opposite bishops and other
-  pieces), so few pawns mean less winning chance.
-- **Fifty-move clock**: subtract `(halfmove clock − 12) / 4`, so a long
-  shuffling phase slowly draws the evaluation toward zero.
+  as the only pieces give a low fixed factor (about a third); otherwise the
+  factor is capped at `base + per_pawn × own pawns`, with a much smaller
+  `per_pawn` when opposite bishops are present alongside other pieces, so few
+  pawns mean less winning chance.
+- **Fifty-move clock**: subtract a term growing with the halfmove clock, so a
+  long shuffling phase slowly draws the evaluation toward zero and the search
+  prefers lines that make progress.
 
 **End state.** Scale factors in the evaluation, their inputs traced; tests on
 opposite-bishop, pawnless and long-clock positions; SPRT `[0, 5]` on an
@@ -3478,9 +3616,9 @@ games) plus an ordinary SPRT.
 
 **What.** Syzygy tablebases give exact win/draw/loss (WDL) and distance to
 zeroing (DTZ) for positions with few pieces. Fathom is a small C library that
-probes them. It is vendored (its source copied into the repository) and
-compiled with the `cc` build dependency, exactly as Rarog does; `cc` is the
-only dependency Whitespine will ever have.
+probes them. It is vendored (its source copied into the repository, so a build
+never depends on the network or on an upstream change) and compiled with the
+`cc` build dependency; `cc` is the only dependency Whitespine will ever have.
 
 **Why here.** The endgame library (4.14) is measured against tablebase truth,
 and tablebases are a playing gain once installed.
@@ -3488,9 +3626,9 @@ and tablebases are a playing gain once installed.
 #### 4.13.1 Vendoring and `build.rs` with `cc`
 
 **How.** Copy Fathom's `src` folder (`tbprobe.c`, `tbprobe.h`, `tbchess.c`,
-`tbconfig.h`, `stdendian.h`) and its `LICENSE` into `vendor/fathom/`, from the
-upstream repository or from `D:/code/rarog/vendor/fathom` (the same library).
-A build script compiles it before the crate.
+`tbconfig.h`, `stdendian.h`) and its `LICENSE` into `vendor/fathom/` from the
+upstream repository, and note the upstream commit in a `VERSION` file next to
+it. A build script compiles it before the crate.
 
 ```toml
 [build-dependencies]
@@ -3516,11 +3654,12 @@ fn main() {
 }
 ```
 
-Two lessons Rarog paid for, both in its `build.rs` comments: on MSVC Fathom is
-compiled in C++ mode; and a target CPU flag given to `rustc` does not reach the
-C compiler, so a build meant for CPUs without POPCNT must define
-`TB_NO_HW_POP_COUNT` or Fathom emits the instruction anyway. Read that file's
-comments before writing your own.
+Two pitfalls worth a comment in `build.rs`: Fathom's C uses features that
+MSVC's C mode rejects, so on MSVC it is compiled as C++ (the `/TP` flag above);
+and a target CPU flag given to `rustc` does not reach the C compiler, so a
+build meant for CPUs without POPCNT must define `TB_NO_HW_POP_COUNT` or
+Fathom emits the instruction anyway and the binary dies with an illegal
+instruction on such a CPU. The release matrix (8.4) has to set this per tier.
 
 **Rust you will practise.** Build scripts, `cargo:` directives, build
 dependencies, how Cargo links a static C library.
@@ -3585,18 +3724,21 @@ default, on in the checkpoint gauntlets.
 
 ### 4.14 Endgames
 
-**What.** Stockfish 11's endgame library: specialised **evaluation functions**
-that replace the whole evaluation for a material configuration (KBNK, KRKP, …),
-and **scaling functions** that only set the scale factor (KRPKR, KBPsK, …).
+**What.** An endgame library: specialised **evaluation functions** that
+replace the whole evaluation for a material configuration (KBNK, KRKP, …), and
+**scaling functions** that only set the scale factor (KRPKR, KBPsK, …). The
+general evaluation knows nothing about the specific technique these endings
+need (driving a king to the right corner, a fortress, a Philidor defence).
 Rating lists often play without tablebases, and even with them the search must
 first reach the probe positions, so this knowledge matters.
 
 #### 4.14.1 Endgame dispatch by material key
 
-**How it is usually done.** Stockfish builds a map from material key to
-function at start-up, computing each key from a position set up from a code
-string like `"KRPKR"`, once for each strong side. In Rust, an `enum` of endgame
-kinds and a `match` replace the virtual functions:
+**How it is usually done.** Build a map from material key to function at
+start-up, computing each key from a position set up from a code string like
+`"KRPKR"`, once for each strong side; the material table then finds the
+function by one lookup. In Rust, an `enum` of endgame kinds and a `match`
+replace the function pointers or virtual dispatch of other languages:
 
 ```rust
 #[derive(Clone, Copy)]
@@ -3736,8 +3878,12 @@ SPSA handles the nonlinear remainder with games; the search margins are then
 refitted to the new evaluation scale.
 
 **How the gate works.** Fit loss is a screen and a falsifier, never
-acceptance: Rarog once lost 17 Elo with a better-fitting vector. Every fit is
-baked into the engine and decided by an SPRT.
+acceptance. The loss measures how well a static number predicts results from
+fixed positions; play depends on how the search uses that number at hundreds
+of thousands of positions per move, most of them never in the corpus. A vector
+with a better loss can and sometimes does lose Elo. Every fit is therefore
+baked into the engine and decided by an SPRT; a fit whose loss did not improve
+is not worth the games.
 
 **Rust you will practise.** A tools crate in the workspace, large `Vec`s of
 compact structs, `std::thread::scope` for data parallelism, buffered I/O,
@@ -3862,11 +4008,12 @@ evaluation of sample positions equals the tuner's rounded prediction.
 **What.** The three places where the evaluation is not a sum of count ×
 parameter.
 
-- **King danger**: the penalty is `danger² / 4096` (middlegame) and
-  `danger / 16` (endgame) with `danger = Σ weight × count`. The gradient with
-  respect to a weight is `2 × danger × count / 4096` in the middlegame half, so
-  the tuner can include the weights with the chain rule, recomputing `danger`
-  per sample every epoch from the traced counts.
+- **King danger**: the penalty is `danger² / D_mg` (middlegame) and
+  `danger / D_eg` (endgame) with `danger = Σ weight × count`. The gradient with
+  respect to a weight is `2 × danger × count / D_mg` in the middlegame half and
+  `count / D_eg` in the endgame half, so the tuner can include the weights with
+  the chain rule, recomputing `danger` per sample every epoch from the traced
+  counts. The divisors and the threshold stay fixed in the fit.
 - **Initiative**: capped by sign, so its gradient is zero where the cap binds
   and linear elsewhere; either apply the chain rule with that rule, or keep its
   weights fixed in the fit (its contribution carried as a fixed per-sample
@@ -3884,8 +4031,10 @@ engine's.
 **What.** A file listing every parameter with a status: **free** (receives
 gradient), **fixed** (structure: phase limits, thresholds, table sizes) or
 **excluded** (nonlinear constants left to SPSA), each with a reason. The tuner
-reads it. Rarog adopted this so that every refit says exactly what was and was
-not fitted.
+reads it. Without such a file, "the fit" is whatever the tuner happened to
+touch, and two refits months apart cannot be compared; with it, every refit
+says exactly what was and was not fitted, and adding a family to the
+evaluation forces a decision about its status.
 
 **End state.** The manifest, and a tuner check that the parameter count in the
 manifest equals the parameter structure's.
@@ -3931,12 +4080,18 @@ first full search SPSA; 3.12 only proved the pipeline.
 
 **End state.** Tuned search constants, SPRT `[0, 5]`.
 
-### 5.8 Candidate terms beyond Stockfish 11
+### 5.8 Candidate terms beyond the core set
 
-**What.** With a fitted evaluation, measure whether terms outside Stockfish 11's
-set add anything. Candidates: those in Rarog's evaluation (closedness, x-ray
-attacks, rook behind a passed pawn, passer blockade, king-centre danger) and
-later Stockfish classical additions (queen infiltration, outpost refinements).
+**What.** With a fitted evaluation, measure whether terms outside the core
+set of Phase 4 add anything. Candidates from the literature: **closedness**
+(a measure of how blocked the pawn structure is, scaling knights up and
+bishops and rooks down), **x-ray attacks** (slider attacks through one piece
+counted as pressure), **rook behind a passed pawn** (the rook supports the
+pawn's advance and stays active), **passer blockade** (a well-placed blocker,
+especially a knight, neutralises a passer), **king-centre danger** (an
+uncastled king with the queens on), **queen infiltration** (a queen deep in
+the enemy camp on a square pawns cannot attack) and **outpost refinements**
+(an outpost is worth more when it cannot be challenged by a minor piece).
 
 **How.** One candidate at a time: look for positions where the fitted
 evaluation misjudges (large error against the game result) and check whether
@@ -3975,10 +4130,10 @@ Phase 4–5 prediction.
 
 **Why now, and why differently.** The evaluation is mature enough that search
 refinements are judged on a realistic score scale. The mechanisms of this phase
-are the ones that make Rarog's target search strong, and they are coupled:
-histories feed move ordering, LMR and pruning; correction histories change the
-static evaluation every margin reads; singular search reuses the table and the
-stack. Adding them one at a time against a tuned neighbourhood often measures
+are the ones that separate a modern alpha-beta search from a textbook one, and
+they are coupled: histories feed move ordering, LMR and pruning; correction
+histories change the static evaluation every margin reads; singular search
+reuses the table and the stack. Adding them one at a time against a tuned neighbourhood often measures
 nothing. From here on (working rule 11): implement a **dependency-complete
 group**, test it for correctness, tune its live constants together by SPSA,
 and gate the group with `[0, 3]` (or `[0, 5]` for a large group).
@@ -3993,8 +4148,11 @@ references into tables held across calls (and why the borrow checker objects),
 indices instead of references, `Box<[T; N]>` and zeroed allocation, careful
 `i16`/`i32` conversions.
 
-**End state of the phase.** A search in the shape of Rarog's target (its PLAN
-B.2–B.5), your own code and constants, at a Tier-3/Tier-4 checkpoint.
+**End state of the phase.** The search described in "The target": clustered
+table with ageing, the full history family, correction histories, LMR in
+fractional units with history pruning, singular and multi-cut and negative
+extensions, ProbCut, refined null move and quiescence, a root move list with
+MultiPV; your own code and constants, at a Tier-3/Tier-4 checkpoint.
 
 ### 6.1 Transposition table 2.0: clusters, stored static eval, TT-PV, ageing
 
@@ -4170,8 +4328,10 @@ SEE pruning by a margin from alpha; fail-high scores pulled toward beta.
 
 **Trap.** Once pruning in the main search is aggressive, some mate threats by
 quiet checks are only seen if quiescence generates quiet checks at its first
-ply. Rarog and Manta both met this. Decide it with the tactical screen, not by
-assumption.
+ply: the main search prunes the quiet move that would have found them, and a
+captures-only quiescence never looks. Engines that removed quiet checks from
+quiescence early have had to put them back at the first ply later. Decide it
+with the tactical screen, not by assumption.
 
 **End state.** Quiescence 2.0; screen passed; SPRT `[0, 3]`.
 
@@ -4310,7 +4470,8 @@ std::thread::scope(|scope| {
 **How.** Measure each thread count against the engine itself at one thread
 (1T, 2T, 4T, 8T, same time per move), without `-use-affinity` (fastchess 1.8.0
 pins one core per game, which starves multi-thread engines). Compare the gain
-with another engine's own 1T-to-4T gain if you want a reference point.
+with published thread-scaling curves if you want a reference point; lazy SMP
+typically gains well under the ideal of one doubling per doubling of threads.
 
 **End state of 7.3.** `Threads` up to the machine's core count; the scaling
 curve recorded. Beating one thread is expected and proves little; the gate is a
@@ -4357,7 +4518,7 @@ game test.
 
 **End state of the phase.** The fastest version of the classical engine,
 released as per-CPU-tier PGO assets from a CI that asserts one fingerprint, and a
-measured standing against Rarog's classical target pool.
+measured standing against the ladder's top tier.
 
 ### 8.1 Profiling workflow
 
@@ -4440,7 +4601,9 @@ guided optimisation, from a CI that refuses to publish inconsistent binaries.
   ```
 
   Pass `--target` so build scripts are not instrumented. Fathom's C code is not
-  optimised with the profile (Rarog documented why in its `build.rs`).
+  optimised with the profile: `RUSTFLAGS` reach only `rustc`, and instrumenting
+  the C compiler separately is not worth it for a library that takes a tiny
+  share of the time.
 - **CI assertions**: every built asset runs `bench` and the job fails unless
   all print the same node count; the release job fails when the tag differs
   from the version in `Cargo.toml`.
@@ -4461,46 +4624,78 @@ procedure) on the refitted evaluation, never mixed with evaluation parameters.
 
 ### 8.6 Classical checkpoint and release 3.0.0
 
-**What.** Where Whitespine stands against Rarog's classical target.
+**What.** Where Whitespine stands against the target defined at the top of
+this plan.
 
 **How.** Tier-5 gauntlet at 1T and 4T, at least 400 games per pair, no
-adjudication, with Rarog's latest classical release included; a 10+0.1 run
-against 2.4.0; a written summary of where the Elo came from, phase by phase,
-from the accepted SPRTs.
+adjudication; a 10+0.1 run against 2.4.0; a written summary of where the Elo
+came from, phase by phase, from the accepted SPRTs; and a checklist of "The
+target" with each item marked met, partly met or not met, with the evidence.
 
 **End state.** Release 3.0.0, the classical Whitespine, and a checkpoint entry
 that Phase 9 compares against.
 
 ---
 
-## Phase 9 — NNUE (network family shared with Rarog)
+## Phase 9 — NNUE
 
-**The principle.** Networks are trained only on data generated by your own
-engines (Rarog, Whitespine, or both). Whitespine uses the same architecture
-family and the same training method as Rarog, implemented in Whitespine's own
-code, so that the best network can run in both engines. That makes Rarog's
-network file contract (inputs, layer sizes, quantisation, file layout) a
-dependency: Whitespine's inference must read exactly the files Rarog's trainer
-produces.
+**The idea.** An *efficiently updatable neural network* replaces the
+hand-crafted evaluation with a small network whose first layer is so simple
+that a move changes it incrementally: each (piece, square) feature adds or
+removes one column of weights from an accumulator, and only the tiny layers
+after the accumulator are recomputed per node. The network is trained offline
+to predict game results and search scores from positions, so it learns what
+Phase 4 wrote by hand, and much that nobody has written down.
+
+**The principle.** Networks are trained only on data generated by Whitespine
+itself. That keeps the whole chain, from the classical data generator to the
+final network, something you built and understand, and it keeps the licence
+question simple.
 
 **Why last.** A classical engine is the data generator for the first networks
 and the fallback when a network is missing; and every search constant must be
 refitted when the evaluation's scale changes, which is only worth doing once.
 
+**Rust you will practise.** `include_bytes!`, fixed-point arithmetic and
+quantisation, `core::arch` SIMD intrinsics behind `cfg`, a per-ply stack of
+large `Copy` arrays, exhaustive conformance tests against reference values.
+
 **End state of the phase.** A Whitespine release that plays with a network
-trained on your engines' data, beats the classical 3.0.0 at short and long
-controls and at four threads, and can load the same network file as Rarog.
+trained on its own data, beats the classical 3.0.0 at short and long controls
+and at four threads, and whose network file format is documented in this
+repository.
 
-### 9.1 Prerequisite: Rarog's network contract
+### 9.1 The network contract
 
-**What.** Wait for, and read, the contract Rarog freezes in its PLAN F.0–F.4:
-input features (a 768-input perspective network as the first architecture:
-2 colours × 6 piece types × 64 squares, seen from each side), hidden size,
-output buckets, activation, quantisation factors, file format, and the
-trainer's reference evaluations for conformance.
+**What.** A written, versioned description of the network that both the
+trainer and the engine implement: everything needed to compute the same number
+from the same position in two different programs.
 
-**End state.** A written summary in this plan of the contract version
-Whitespine implements; later architecture changes follow Rarog's F.7 ladder.
+**How it is usually done.** The first architecture is the simplest that works
+well, a **768-input perspective network**:
+
+- **Inputs**: 2 colours × 6 piece types × 64 squares = 768 features per
+  perspective, one perspective from each side's point of view (the board
+  flipped for Black), so the network sees "my pieces" and "their pieces"
+  regardless of colour.
+- **Accumulator**: one hidden layer per perspective, a few hundred neurons
+  (256 to 1,024), `i16` weights and biases.
+- **Activation**: clipped ReLU (`clamp(0, Q)`) or squared clipped ReLU, which
+  is cheaper to train well.
+- **Output**: the two activated accumulators concatenated with the side to
+  move first, a dot product with the output weights, one output bucket at
+  first (later several, chosen by piece count).
+- **Quantisation**: the scale factors that turn the trainer's floating-point
+  weights into integers (`QA` for the accumulator, `QB` for the output), and
+  the scale that turns the integer output into centipawns.
+- **File format**: a header with a magic string and the contract version, then
+  the weights in a fixed order and byte order.
+- **Conformance set**: a few hundred positions with the trainer's reference
+  evaluation for each, so the engine's inference can be checked to the integer.
+
+**End state.** `docs/nnue-contract.md` with the architecture, quantisation,
+file layout and a version number; a change to any of them bumps the version,
+and the engine refuses a file whose version it does not implement.
 
 ### 9.2 Board events for the accumulator
 
@@ -4519,14 +4714,15 @@ fingerprint unchanged; NPS cost measured.
 
 ### 9.3 Data generation at scale
 
-**What.** Tens of millions of positions (Rarog plans 30–60 million unique
-positions for its first nets) in the trainer's format, generated by the
-classical head.
+**What.** Tens of millions of positions in the trainer's format, generated by
+the classical head. A network cannot be better than its data: the positions
+must cover what games reach, the labels must be honest, and no position may
+appear in both training and validation sets.
 
-**How.** 5.1's generator, scaled: more threads, a node or depth budget per move,
-deduplication, splits by game, manifests with hashes, and binary output if the
-trainer prefers it. Data from Rarog's generator may be pooled if its format and
-labelling policy match.
+**How.** 5.1's generator, scaled: more threads, a node or depth budget per
+move, deduplication, splits by game, manifests with hashes, and binary output
+if the trainer prefers it. Label each position with the search score and the
+game result; the trainer blends them.
 
 **End state.** A corpus with a manifest; maintainer-run.
 
@@ -4534,14 +4730,16 @@ labelling policy match.
 
 **What.** Turn data into a network file.
 
-**How.** Use the same trainer as Rarog (its F.0 decision, `D:/code/net_trainer`
-or bullet) as an external tool, like fastchess: running a trainer is not writing
-engine code. Optionally write a tiny CPU trainer for a toy network yourself to
+**How.** Use an existing open-source NNUE trainer as an external tool, like
+fastchess: running a trainer is not writing engine code, and a GPU trainer is
+a project of its own. Configure it to the contract of 9.1 and record every
+setting. Optionally write a tiny CPU trainer for a toy network yourself to
 understand back-propagation and quantisation; do not expect it to produce the
 real networks.
 
 **End state.** A baseline network trained with a recorded configuration, two
-seeds per configuration, validation loss reported.
+seeds per configuration, validation loss reported, and the conformance set of
+9.1 produced by the trainer.
 
 ### 9.5 Scalar inference and conformance
 
@@ -4572,7 +4770,10 @@ no network is loaded.
 ### 9.6 Incremental accumulators
 
 **What.** Update the first layer from the board events instead of recomputing
-it: one accumulator per ply on a stack, lazily updated from the parent.
+it: one accumulator per ply on a stack, lazily updated from the parent. This
+is the "efficiently updatable" part, and it is where the speed comes from: a
+refresh touches every active feature (about 30 columns), an update touches two
+to four.
 
 **End state.** A randomised test over long playouts in which every move type
 occurs: the incremental accumulator equals a full refresh at every ply.
@@ -4601,10 +4802,18 @@ SPRT against the unfitted network build.
 
 ### 9.9 Network ladder and data refresh
 
-**What.** Better networks in steps: output buckets, king buckets with
-mirroring, larger hidden layers, then inputs describing piece relations and
-threats, one change at a time, following Rarog's F.7 ladder so both engines can
-share the winner; and data refreshed by the strongest network engine.
+**What.** Better networks in steps, one architectural change at a time, each
+a new contract version and each gated by games:
+
+1. **Output buckets** by piece count: the output layer specialises per game
+   phase.
+2. **King buckets with mirroring**: the input features are indexed also by the
+   own king's square (grouped into a few regions, mirrored left-right), so the
+   network learns king-relative patterns.
+3. **Larger hidden layers**, as far as the speed cost is repaid.
+4. **Richer inputs** describing piece relations and threats.
+
+And data refreshed by the strongest network engine, in cycles like 5.9.
 
 **End state.** Each network gated against the previous one; the data cycle
 stopped at the first refresh that does not accept.
@@ -4614,8 +4823,7 @@ stopped at the first refresh that does not accept.
 **What.** The first network Whitespine.
 
 **How.** Beat 3.0.0 at 3+0.03, at 10+0.1 and at 4 threads; clean platform
-matrix; the network file identical to the one Rarog can load (or the contract
-difference written down).
+matrix; the contract document matches the shipped file.
 
 **End state.** Release 4.0.0. A CCRL submission is your call.
 
@@ -4625,13 +4833,15 @@ difference written down).
 
 - Chess Programming Wiki (chessprogramming.org): bitboards, magic bitboards,
   perft results, SEE, transposition table, null move pruning, LMR, futility
-  pruning, Texel's tuning method, SPSA, NNUE.
+  pruning, singular extensions, history heuristics, the classical evaluation
+  terms of Phase 4 (pawn structure, mobility, king safety, passed pawns,
+  material imbalance), Texel's tuning method, SPSA, NNUE.
 - Syzygy and Fathom: the `tbprobe.h` header comments are the contract.
-- Stockfish 11 (classical evaluation shape), Ethereal and Weiss (clear classical
-  and early modern search code), Reckless (modern Rust search; Rarog's search
-  donor), Rarog's own PLAN and `analysis/` records (measured pitfalls).
 - J. C. Spall, "An Overview of the Simultaneous Perturbation Method for
   Efficient Optimization" (SPSA).
+- Y. Nasu, "Efficiently Updatable Neural-Network-based Evaluation Functions
+  for Computer Shogi" (the NNUE idea), and the Chess Programming Wiki's NNUE
+  page for the chess adaptation.
 - The UCI protocol text shipped in this repository (`uci_specification.txt`).
 - fastchess `-help` and weather-factory's `README.md` for the exact options of
   the tools in use.
