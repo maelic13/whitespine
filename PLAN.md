@@ -35,7 +35,7 @@ Rust toolchain: **1.98.1**, edition 2024. Chess960 is out of scope by decision.
     - [ ] **0.6.5** Gate and release 1.4.1
 - [ ] **0.7** Reference ladder and the baseline
     - [ ] **0.7.1** Protocol and clock check of every candidate opponent
-    - [ ] **0.7.2** Tier-1 calibration round robin with Whitespine 1.4.0 and 1.4.1
+    - [ ] **0.7.2** Tier-1 calibration round-robin with Whitespine 1.4.0 and 1.4.1
     - [ ] **0.7.3** Record the starting point in EXPERIMENTS.md
 
 ### Phase 1 — Board representation
@@ -317,21 +317,21 @@ eight files. Everything chess-related is delegated to the `chess` crate 3.2.0:
 board, move generation, legality and game history. The comparison below is what
 Phases 0–8 of this plan close.
 
-| Area | Whitespine 1.4.0 | Target end state (Phase 8) |
-|---|---|---|
-| Board | `chess` crate `Game`, rebuilt by replaying the whole game on every access | Own bitboards, magic and PEXT sliders, make/unmake with a compact undo record, pins and checkers, SEE, pawn/non-pawn/minor keys, threat maps |
-| Move generation | Legal moves collected into `Vec`, full board copy per move for check detection | Allocation-free lists, noisy/quiet/evasion generation, pseudo-legal validation for table moves, `gives_check` |
-| Search | Fail-hard alpha-beta, iterative deepening, quiescence with captures and every check | PVS with node types, TT cutoffs, NMP, ProbCut, RFP, razoring, LMR in fractional units, LMP, futility and SEE pruning, singular/multi-cut/negative extensions, aspiration windows, MultiPV |
-| Transposition table | None | 3-entry 32-byte clusters with stored static eval, TT-PV flag and 5-bit age |
-| Move ordering | MVV-LVA plus a "gives check" bonus, recomputed by copying the board | Staged picker; quiet, capture, continuation and pawn histories with gravity; SEE-split captures |
-| Evaluation corrections | None | Pawn, non-pawn and continuation correction histories, rule-50 damping |
-| Evaluation | Untapered centre and king-distance bonuses in `f64` | Tapered, integer, traced families: pawns, passers, mobility, pieces, king safety, threats, space, imbalance, scaling, endgame recognisers, KPK |
-| Tuning | Hand-picked constants | Texel fits of the whole linear surface, SPSA of search and nonlinear coordinates, registered SPRTs |
-| Tablebases | None | Syzygy through vendored Fathom with root DTZ and interior WDL |
-| Clock | 5% of the clock, or 10% plus the increment; can go negative | Soft and hard bounds, stability and node-fraction scaling, forfeit margin |
-| Threads | `Threads` advertised, clamped to 1 | Lazy SMP with a shared table |
-| Protocol | Subset of `go`; commands received during a search are lost | Full `go` limits, pondering, MultiPV, robust lifecycle |
-| Instruments | One unit test | Perft suites, bench fingerprint, SPRT harness, SPSA, Texel tuner, datagen, CI matrix, PGO tier builds |
+| Area                   | Whitespine 1.4.0                                                                    | Target end state (Phase 8)                                                                                                                                                                |
+|------------------------|-------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Board                  | `chess` crate `Game`, rebuilt by replaying the whole game on every access           | Own bitboards, magic and PEXT sliders, make/unmake with a compact undo record, pins and checkers, SEE, pawn/non-pawn/minor keys, threat maps                                              |
+| Move generation        | Legal moves collected into `Vec`, full board copy per move for check detection      | Allocation-free lists, noisy/quiet/evasion generation, pseudo-legal validation for table moves, `gives_check`                                                                             |
+| Search                 | Fail-hard alpha-beta, iterative deepening, quiescence with captures and every check | PVS with node types, TT cutoffs, NMP, ProbCut, RFP, razoring, LMR in fractional units, LMP, futility and SEE pruning, singular/multi-cut/negative extensions, aspiration windows, MultiPV |
+| Transposition table    | None                                                                                | 3-entry 32-byte clusters with stored static eval, TT-PV flag and 5-bit age                                                                                                                |
+| Move ordering          | MVV-LVA plus a "gives check" bonus, recomputed by copying the board                 | Staged picker; quiet, capture, continuation and pawn histories with gravity; SEE-split captures                                                                                           |
+| Evaluation corrections | None                                                                                | Pawn, non-pawn and continuation correction histories, rule-50 damping                                                                                                                     |
+| Evaluation             | Untapered centre and king-distance bonuses in `f64`                                 | Tapered, integer, traced families: pawns, passers, mobility, pieces, king safety, threats, space, imbalance, scaling, endgame recognisers, KPK                                            |
+| Tuning                 | Hand-picked constants                                                               | Texel fits of the whole linear surface, SPSA of search and nonlinear coordinates, registered SPRTs                                                                                        |
+| Tablebases             | None                                                                                | Syzygy through vendored Fathom with root DTZ and interior WDL                                                                                                                             |
+| Clock                  | 5% of the clock, or 10% plus the increment; can go negative                         | Soft and hard bounds, stability and node-fraction scaling, forfeit margin                                                                                                                 |
+| Threads                | `Threads` advertised, clamped to 1                                                  | Lazy SMP with a shared table                                                                                                                                                              |
+| Protocol               | Subset of `go`; commands received during a search are lost                          | Full `go` limits, pondering, MultiPV, robust lifecycle                                                                                                                                    |
+| Instruments            | One unit test                                                                       | Perft suites, bench fingerprint, SPRT harness, SPSA, Texel tuner, datagen, CI matrix, PGO tier builds                                                                                     |
 
 **Conclusion.** Almost nothing in 1.4.0 is a base to build on; what carries
 over is the experience of having written an engine, the UCI shell shape and the
@@ -351,25 +351,25 @@ stay fixed (2.7); structural defects are removed by the rewrite alone.
 lightly loaded host (rough numbers, not a speed study); the rest are read from
 the source.
 
-| ID | Severity | Finding | Evidence | Fixed by |
-|---|---|---|---|---|
-| W-01 | Critical | `Game::current_position()` replays every move from the start position on each call, and `Game::can_declare_draw()` replays the game and generates legal moves for every earlier position. Both run several times per node, and each child also clones the game's move history (`engine.rs:186`, `engine.rs:271`). Node cost grows with game length. | Measured: depth 5 from the start position ~239k NPS; the same search after 56 plies ~26k NPS, nine times slower | Rewrite: 1.6, 1.7, 2.3.3 |
-| W-02 | Critical | When a draw *can be claimed* at the root, the engine prints `bestmove 0000` instead of a move (`engine.rs:82`). A GUI that does not claim the draw itself receives a null move. | Measured: after `g1f3 g8f6 f3g1 f6g8` twice, `go depth 3` answers `bestmove 0000` | 1.4.1: 0.6.2; rewrite: 2.2.3 |
-| W-03 | High | Quiescence stands pat while in check and considers only captures and checks, so check evasions by quiet moves are never searched (`engine.rs:231-234`, `engine.rs:296`). Mates and forced losses are misjudged at the horizon. | Source | 1.4.1: 0.6.4; rewrite: 2.3.4 |
-| W-04 | High | Quiescence generates every checking move at every quiescence ply with no limit (`engine.rs:296-318`); check sequences are bounded only by threefold repetition. | Source | 1.4.1: 0.6.4; rewrite: 2.3.4 |
-| W-05 | High | Mate scores use *remaining depth*, not distance from the root (`heuristic.rs:61-63`); quiescence scales mate scores by 0.95 (`engine.rs:225`); mates are reported as `score cp`. The same mate changes score between iterations. | Measured: mate in one reported as `cp 12002` at depth 3 and `cp 12003` at depth 4 | 1.4.1: 0.6.4; rewrite: 2.3.1 |
-| W-06 | High | Iterative deepening carries nothing between iterations (no table, previous best move not tried first), so each iteration repeats the whole tree. | Measured: 17,167 → 126,882 → 1,013,546 nodes at depths 4 → 5 → 6, a branching factor near 8 | Rewrite: 3.1, 3.2, 3.3 |
-| W-07 | High | The search polls the command channel at every node and silently discards any command that is not `stop` or `quit` (`engine.rs:68-76`). The poll plus a clock read also run at every node, quiescence included. | Measured: `go infinite`, `go depth 1`, `stop` produce one `bestmove` | 1.4.1: 0.6.2; rewrite: 2.2.1, 2.2.2 |
-| W-08 | Medium | If stopped before depth 1 finishes, the move played is chosen by the clock's nanoseconds from the legal list (`engine.rs:92`). | Measured: `bestmove a2a4` after an immediate stop | 1.4.1: 0.6.2; rewrite: 2.2.3 |
-| W-09 | High | Clock: without increment the budget is `0.05 × (time − overhead)`, negative when time is below the overhead; with increment it is `0.1 × time + inc`, capped only at `time − overhead`; `movestogo` is ignored; the overhead is not applied to `movetime`; timing starts when the engine thread dequeues the command, not at `go` (`engine.rs:321-356`). | Measured: `go wtime 5 btime 5` answers `g2g3` immediately without a search line | 1.4.1: 0.6.3; rewrite: 2.4, 7.1 |
-| W-10 | Medium | `go nodes`, `mate`, `movestogo`, `searchmoves` and `ponder` are ignored; `go nodes N` searches until stopped; `go` without arguments means depth 2 (`search_options.rs:104-143`, `:114`). | Measured: no `bestmove` within 3 s for `go nodes 1000` | 1.4.1: 0.6.2; rewrite: 2.1.2 |
-| W-11 | Medium | Scores and depth are `f64`; the king's value is `f64::INFINITY`, which `as i32` saturates to `i32::MAX`, so every capture by the king sorts last in MVV-LVA (`piece_value.rs:20`, `engine.rs:371`). | Source | 1.4.1: 0.6.4; rewrite: 1.1, 2.3.1, 2.3.5 |
-| W-12 | Medium | Move ordering copies the board for every move to find checks (`engine.rs:381`); the quiescence generator orders all legal moves (another copy each) and copies again (`engine.rs:303`). | Source | Rewrite: 1.5.6, 3.2 |
-| W-13 | Medium | Fail-hard returns (`engine.rs:203`, `:234`, `:286`) waste bound information; the PV is built with `Vec::insert(0, …)`, allocating at every node (`engine.rs:200`). | Source | Rewrite: 2.3.3 |
-| W-14 | Medium | Evaluation is untapered; the king-distance term `14/d × w − w` reaches 13w (104 cp for a knight or queen next to the enemy king, 65 cp for a pawn) and rewards pawns for approaching the enemy king (`heuristic.rs:328`); there is no pawn structure, mobility, king safety, passed pawn or bishop-pair knowledge; no constant is fitted. | Source | Rewrite: Phase 4 (seeded), Phase 5 (fitted) |
-| W-15 | Low | Protocol hygiene: `Invalid setoption command.` is printed without `info string` (`search_options.rs:153`); a banner line precedes `uci` (`main.rs:18`); a non-UTF-8 input line panics (`uci_protocol.rs:26`); no `Hash` option; an illegal move in `position` silently keeps the previous position. | Measured for `setoption` and the illegal move | 1.4.1: 0.6.2; rewrite: 2.1 |
-| W-16 | Low | Delta pruning has two identical branches (clippy `if_same_then_else`, `engine.rs:255`) and ignores promotions. | `cargo clippy` | 1.4.1: 0.6.4; rewrite: 3.9 |
-| W-17 | Medium | Engineering: `Cargo.lock` is ignored for a binary crate, so builds are not reproducible; no toolchain pin; CI runs only on published releases; one unit test; 18 clippy warnings; no perft or bench; `pub fn default()` in place of the `Default` trait. | `.gitignore`, `cargo clippy`, `cargo test` | 0.1–0.4, 2.5 |
+| ID   | Severity | Finding                                                                                                                                                                                                                                                                                                                                                  | Evidence                                                                                                        | Fixed by                                    |
+|------|----------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------|---------------------------------------------|
+| W-01 | Critical | `Game::current_position()` replays every move from the start position on each call, and `Game::can_declare_draw()` replays the game and generates legal moves for every earlier position. Both run several times per node, and each child also clones the game's move history (`engine.rs:186`, `engine.rs:271`). Node cost grows with game length.      | Measured: depth 5 from the start position ~239k NPS; the same search after 56 plies ~26k NPS, nine times slower | Rewrite: 1.6, 1.7, 2.3.3                    |
+| W-02 | Critical | When a draw *can be claimed* at the root, the engine prints `bestmove 0000` instead of a move (`engine.rs:82`). A GUI that does not claim the draw itself receives a null move.                                                                                                                                                                          | Measured: after `g1f3 g8f6 f3g1 f6g8` twice, `go depth 3` answers `bestmove 0000`                               | 1.4.1: 0.6.2; rewrite: 2.2.3                |
+| W-03 | High     | Quiescence stands pat while in check and considers only captures and checks, so check evasions by quiet moves are never searched (`engine.rs:231-234`, `engine.rs:296`). Mates and forced losses are misjudged at the horizon.                                                                                                                           | Source                                                                                                          | 1.4.1: 0.6.4; rewrite: 2.3.4                |
+| W-04 | High     | Quiescence generates every checking move at every quiescence ply with no limit (`engine.rs:296-318`); check sequences are bounded only by threefold repetition.                                                                                                                                                                                          | Source                                                                                                          | 1.4.1: 0.6.4; rewrite: 2.3.4                |
+| W-05 | High     | Mate scores use *remaining depth*, not distance from the root (`heuristic.rs:61-63`); quiescence scales mate scores by 0.95 (`engine.rs:225`); mates are reported as `score cp`. The same mate changes score between iterations.                                                                                                                         | Measured: mate in one reported as `cp 12002` at depth 3 and `cp 12003` at depth 4                               | 1.4.1: 0.6.4; rewrite: 2.3.1                |
+| W-06 | High     | Iterative deepening carries nothing between iterations (no table, previous best move not tried first), so each iteration repeats the whole tree.                                                                                                                                                                                                         | Measured: 17,167 → 126,882 → 1,013,546 nodes at depths 4 → 5 → 6, a branching factor near 8                     | Rewrite: 3.1, 3.2, 3.3                      |
+| W-07 | High     | The search polls the command channel at every node and silently discards any command that is not `stop` or `quit` (`engine.rs:68-76`). The poll plus a clock read also run at every node, quiescence included.                                                                                                                                           | Measured: `go infinite`, `go depth 1`, `stop` produce one `bestmove`                                            | 1.4.1: 0.6.2; rewrite: 2.2.1, 2.2.2         |
+| W-08 | Medium   | If stopped before depth 1 finishes, the move played is chosen by the clock's nanoseconds from the legal list (`engine.rs:92`).                                                                                                                                                                                                                           | Measured: `bestmove a2a4` after an immediate stop                                                               | 1.4.1: 0.6.2; rewrite: 2.2.3                |
+| W-09 | High     | Clock: without increment the budget is `0.05 × (time − overhead)`, negative when time is below the overhead; with increment it is `0.1 × time + inc`, capped only at `time − overhead`; `movestogo` is ignored; the overhead is not applied to `movetime`; timing starts when the engine thread dequeues the command, not at `go` (`engine.rs:321-356`). | Measured: `go wtime 5 btime 5` answers `g2g3` immediately without a search line                                 | 1.4.1: 0.6.3; rewrite: 2.4, 7.1             |
+| W-10 | Medium   | `go nodes`, `mate`, `movestogo`, `searchmoves` and `ponder` are ignored; `go nodes N` searches until stopped; `go` without arguments means depth 2 (`search_options.rs:104-143`, `:114`).                                                                                                                                                                | Measured: no `bestmove` within 3 s for `go nodes 1000`                                                          | 1.4.1: 0.6.2; rewrite: 2.1.2                |
+| W-11 | Medium   | Scores and depth are `f64`; the king's value is `f64::INFINITY`, which `as i32` saturates to `i32::MAX`, so every capture by the king sorts last in MVV-LVA (`piece_value.rs:20`, `engine.rs:371`).                                                                                                                                                      | Source                                                                                                          | 1.4.1: 0.6.4; rewrite: 1.1, 2.3.1, 2.3.5    |
+| W-12 | Medium   | Move ordering copies the board for every move to find checks (`engine.rs:381`); the quiescence generator orders all legal moves (another copy each) and copies again (`engine.rs:303`).                                                                                                                                                                  | Source                                                                                                          | Rewrite: 1.5.6, 3.2                         |
+| W-13 | Medium   | Fail-hard returns (`engine.rs:203`, `:234`, `:286`) waste bound information; the PV is built with `Vec::insert(0, …)`, allocating at every node (`engine.rs:200`).                                                                                                                                                                                       | Source                                                                                                          | Rewrite: 2.3.3                              |
+| W-14 | Medium   | Evaluation is untapered; the king-distance term `14/d × w − w` reaches 13w (104 cp for a knight or queen next to the enemy king, 65 cp for a pawn) and rewards pawns for approaching the enemy king (`heuristic.rs:328`); there is no pawn structure, mobility, king safety, passed pawn or bishop-pair knowledge; no constant is fitted.                | Source                                                                                                          | Rewrite: Phase 4 (seeded), Phase 5 (fitted) |
+| W-15 | Low      | Protocol hygiene: `Invalid setoption command.` is printed without `info string` (`search_options.rs:153`); a banner line precedes `uci` (`main.rs:18`); a non-UTF-8 input line panics (`uci_protocol.rs:26`); no `Hash` option; an illegal move in `position` silently keeps the previous position.                                                      | Measured for `setoption` and the illegal move                                                                   | 1.4.1: 0.6.2; rewrite: 2.1                  |
+| W-16 | Low      | Delta pruning has two identical branches (clippy `if_same_then_else`, `engine.rs:255`) and ignores promotions.                                                                                                                                                                                                                                           | `cargo clippy`                                                                                                  | 1.4.1: 0.6.4; rewrite: 3.9                  |
+| W-17 | Medium   | Engineering: `Cargo.lock` is ignored for a binary crate, so builds are not reproducible; no toolchain pin; CI runs only on published releases; one unit test; 18 clippy warnings; no perft or bench; `pub fn default()` in place of the `Default` trait.                                                                                                 | `.gitignore`, `cargo clippy`, `cargo test`                                                                      | 0.1–0.4, 2.5                                |
 
 ---
 
@@ -386,7 +386,7 @@ These are the maintainer's rules for this plan.
    games measure strength, and none of the other layers converts to Elo.
 3. **Write the prediction before the games.** Register every SPRT, gauntlet,
    SPSA and fit in `EXPERIMENTS.md` before it starts: baseline, candidate,
-   bounds, time control, book, expected result. Afterwards add the result and
+   bounds, time control, book, expected result. Afterward add the result and
    what the prediction got wrong. A rejected or neutral result is a result.
 4. **Measure what you think you measure.** Build the release binary from
    committed source, name it with version and short SHA, record its SHA-256
@@ -421,14 +421,14 @@ These are the maintainer's rules for this plan.
 
 ### Game-test policy
 
-| Purpose | Bounds (normalized Elo) | Notes |
-|---|---|---|
-| Rewrite gate, first TT, replacing the evaluation, first full Texel fit, other large expected gains | `[0, 10]` | Resolves in hundreds to a few thousand games |
-| Ordinary feature in Phases 3–5 | `[0, 5]` | |
-| Refinement in Phases 5–8 | `[0, 3]` | Tens of thousands of games; budget overnight; confirm big clusters at 10+0.1 |
-| Bug-fix release (1.4.1) | `[-5, 0]` | Accepts "not worse"; correctness is the reason for the release |
-| Simplification or removal | `[-1.75, 0.25]` | Accepts "not worse" within a small loss |
-| Repair of unknown sign | `[-5, 5]` | |
+| Purpose                                                                                            | Bounds (normalized Elo) | Notes                                                                        |
+|----------------------------------------------------------------------------------------------------|-------------------------|------------------------------------------------------------------------------|
+| Rewrite gate, first TT, replacing the evaluation, first full Texel fit, other large expected gains | `[0, 10]`               | Resolves in hundreds to a few thousand games                                 |
+| Ordinary feature in Phases 3–5                                                                     | `[0, 5]`                |                                                                              |
+| Refinement in Phases 5–8                                                                           | `[0, 3]`                | Tens of thousands of games; budget overnight; confirm big clusters at 10+0.1 |
+| Bug-fix release (1.4.1)                                                                            | `[-5, 0]`               | Accepts "not worse"; correctness is the reason for the release               |
+| Simplification or removal                                                                          | `[-1.75, 0.25]`         | Accepts "not worse" within a small loss                                      |
+| Repair of unknown sign                                                                             | `[-5, 5]`               |                                                                              |
 
 **Time control.** 8+0.08 until 2.8, because the old engine and the first
 rewrite are not yet proven at fast controls. From 2.8 on, **3+0.03** for SPRTs
@@ -814,13 +814,13 @@ is measured.
 Which engines fill each tier is a measurement, recorded in `EXPERIMENTS.md` by
 0.7.1 and revised at every checkpoint; the plan itself names no opponent.
 
-| Tier | Job | What belongs there |
-|---|---|---|
-| 1 | Phase 0 baseline, gate of Phase 2 | Engines around and below 1.4.0's strength: simple hobby engines, and Whitespine 1.4.0 and 1.4.1 themselves |
-| 2 | Checkpoint 3.13 | Engines a few hundred Elo above 1.4.0: early-generation hobby engines with a transposition table and basic pruning |
-| 3 | Checkpoints 4.15, 5.10, 6.10 | Mature amateur engines with a full classical evaluation |
-| 4 | Checkpoints 6.10, 7.5 | Commercial and open-source engines of the late 2000s and early 2010s |
-| 5 | Classical target, 8.6 | The strongest hand-crafted-evaluation engines: the band described in "The target" |
+| Tier | Job                               | What belongs there                                                                                                 |
+|------|-----------------------------------|--------------------------------------------------------------------------------------------------------------------|
+| 1    | Phase 0 baseline, gate of Phase 2 | Engines around and below 1.4.0's strength: simple hobby engines, and Whitespine 1.4.0 and 1.4.1 themselves         |
+| 2    | Checkpoint 3.13                   | Engines a few hundred Elo above 1.4.0: early-generation hobby engines with a transposition table and basic pruning |
+| 3    | Checkpoints 4.15, 5.10, 6.10      | Mature amateur engines with a full classical evaluation                                                            |
+| 4    | Checkpoints 6.10, 7.5             | Commercial and open-source engines of the late 2000s and early 2010s                                               |
+| 5    | Classical target, 8.6             | The strongest hand-crafted-evaluation engines: the band described in "The target"                                  |
 
 Every tier needs at least three engines so a single odd opponent cannot
 dominate a gauntlet. Engines that speak only xboard are excluded, since
@@ -1575,7 +1575,7 @@ check (a `debug_assert!`); hash and state restored exactly.
   ```
 
   In search, one earlier occurrence inside the search tree is enough to call
-  the position a draw (the side can repeat again); positions from the game
+  the position a draw (the side can repeat); positions from the game
   before the root need two. Null moves break a repetition chain; decide how the
   scan treats them.
 - **Fifty moves.** Halfmove clock at 100 or more is a draw, unless the side to
@@ -1627,14 +1627,14 @@ keep a switch so the slow path stays testable.
 counts, as ordinary tests at depths that run in seconds, plus deeper counts as
 `#[ignore]` tests you run before a release (`cargo test --release -- --ignored`).
 
-| Position | FEN | Counts by depth |
-|---|---|---|
-| Start | `rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1` | 20, 400, 8,902, 197,281, 4,865,609, 119,060,324 |
-| Kiwipete | `r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1` | 48, 2,039, 97,862, 4,085,603, 193,690,690 |
-| 3 | `8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1` | 14, 191, 2,812, 43,238, 674,624, 11,030,083 |
-| 4 | `r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1` | 6, 264, 9,467, 422,333, 15,833,292 |
-| 5 | `rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8` | 44, 1,486, 62,379, 2,103,487, 89,941,194 |
-| 6 | `r4rk1/1pp1qppp/p1np1n2/2b1p1B1/2B1P1b1/3P1N1P/PPP1NPP1/R4RK1 w - - 0 10` | 46, 2,079, 89,890, 3,894,594, 164,075,551 |
+| Position | FEN                                                                       | Counts by depth                                 |
+|----------|---------------------------------------------------------------------------|-------------------------------------------------|
+| Start    | `rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1`                | 20, 400, 8,902, 197,281, 4,865,609, 119,060,324 |
+| Kiwipete | `r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1`    | 48, 2,039, 97,862, 4,085,603, 193,690,690       |
+| 3        | `8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1`                               | 14, 191, 2,812, 43,238, 674,624, 11,030,083     |
+| 4        | `r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1`        | 6, 264, 9,467, 422,333, 15,833,292              |
+| 5        | `rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8`               | 44, 1,486, 62,379, 2,103,487, 89,941,194        |
+| 6        | `r4rk1/1pp1qppp/p1np1n2/2b1p1B1/2B1P1b1/3P1N1P/PPP1NPP1/R4RK1 w - - 0 10` | 46, 2,079, 89,890, 3,894,594, 164,075,551       |
 
 Add a larger EPD perft suite (for example the widely circulated `perftsuite.epd`
 with about 130 positions) stored under `tests/data/`, parsed by the test.
@@ -2854,13 +2854,13 @@ Seed the material from the classical values every chess player knows, with
 the middlegame pawn a little below 100 (a pawn matters less while pieces
 dominate) and pieces a little more valuable in the endgame:
 
-| Piece | Middlegame | Endgame |
-|---|---|---|
-| Pawn | 80–90 | 100 |
-| Knight | 320 | 330 |
-| Bishop | 330 | 350 |
-| Rook | 500 | 540 |
-| Queen | 950 | 1,000 |
+| Piece  | Middlegame | Endgame |
+|--------|------------|---------|
+| Pawn   | 80–90      | 100     |
+| Knight | 320        | 330     |
+| Bishop | 330        | 350     |
+| Rook   | 500        | 540     |
+| Queen  | 950        | 1,000   |
 
 These are seeds; Phase 5 refits them, and the refit usually moves the minor
 pieces and the rook noticeably. If you take a seed for any term from a
@@ -3166,17 +3166,17 @@ pawns around it.
 
 **How it is usually done.** For each pawn on square `s` with relative rank `r`:
 
-| Relation | Definition |
-|---|---|
-| opposed | an enemy pawn is ahead on the same file |
-| blocked | an enemy pawn is directly in front |
-| stoppers | enemy pawns in the passed-pawn span (ahead on the same and adjacent files) |
-| lever | enemy pawns this pawn attacks now |
-| lever push | enemy pawns this pawn would attack after one push |
-| doubled | an own pawn directly behind |
-| neighbours | own pawns on adjacent files |
-| phalanx | neighbours on the same rank |
-| support | neighbours one rank behind (defending this pawn) |
+| Relation   | Definition                                                                 |
+|------------|----------------------------------------------------------------------------|
+| opposed    | an enemy pawn is ahead on the same file                                    |
+| blocked    | an enemy pawn is directly in front                                         |
+| stoppers   | enemy pawns in the passed-pawn span (ahead on the same and adjacent files) |
+| lever      | enemy pawns this pawn attacks now                                          |
+| lever push | enemy pawns this pawn would attack after one push                          |
+| doubled    | an own pawn directly behind                                                |
+| neighbours | own pawns on adjacent files                                                |
+| phalanx    | neighbours on the same rank                                                |
+| support    | neighbours one rank behind (defending this pawn)                           |
 
 Derived properties:
 
@@ -3256,7 +3256,7 @@ if (attacks & st.king_ring[them.index()]).any() {
 is a table per piece type indexed by the number of attacked squares inside the
 mobility area (4.3.4): 9 entries for knights, 14 for bishops, 15 for rooks, 28
 for queens. The tables are strongly nonlinear: a knight with 0–2 squares is
-nearly trapped and heavily penalised, extra squares beyond 5 add little.
+nearly trapped and heavily penalized, extra squares beyond 5 add little.
 
 **End state.** Mobility tables seeded and traced (one parameter per entry);
 activation tests (a trapped bishop, an open-board queen); SPRT `[0, 10]`
@@ -3556,15 +3556,15 @@ pawns on one flank make it drawish.
 **How it is usually done.** Compute a *complexity* score as a weighted sum of
 features that make a position winnable, minus a constant:
 
-| Feature | Why it counts |
-|---|---|
-| number of passed pawns | a passer is a concrete way to win |
-| number of pawns | more pawns, more play; pawnless positions are drawish |
-| outflanking (king file distance minus king rank distance) | kings far apart on the files leave room for a decisive king march |
-| infiltration (a king has crossed into the enemy half) | an active king in an endgame is a winning factor |
-| pawns on both flanks | play on two wings stretches the defence |
-| no non-pawn material | pure pawn endings are decided by tempo and are rarely drawn by fortress |
-| almost unwinnable (no passers, negative outflanking, pawns on one flank only) | a large negative weight: the classic drawn structure |
+| Feature                                                                       | Why it counts                                                           |
+|-------------------------------------------------------------------------------|-------------------------------------------------------------------------|
+| number of passed pawns                                                        | a passer is a concrete way to win                                       |
+| number of pawns                                                               | more pawns, more play; pawnless positions are drawish                   |
+| outflanking (king file distance minus king rank distance)                     | kings far apart on the files leave room for a decisive king march       |
+| infiltration (a king has crossed into the enemy half)                         | an active king in an endgame is a winning factor                        |
+| pawns on both flanks                                                          | play on two wings stretches the defence                                 |
+| no non-pawn material                                                          | pure pawn endings are decided by tempo and are rarely drawn by fortress |
+| almost unwinnable (no passers, negative outflanking, pawns on one flank only) | a large negative weight: the classic drawn structure                    |
 
 Each weight is a parameter. Apply the complexity in the direction of the
 current advantage, capped so it never flips the sign of either half: it can
@@ -3823,20 +3823,20 @@ KPK position.
 **What.** Each returns a scale factor, or "none" when the pattern does not
 apply, for its material signature.
 
-| Function | Pattern it knows |
-|---|---|
-| KBPsK | rook pawns with a bishop that does not control the queening square and the defending king in front: draw; some blocked b/g-file patterns |
-| KQKRPs | the rook on its third rank defended by a pawn, king behind: fortress |
-| KRPKR | Philidor-type defences, the defending king in front of the pawn, rook pawn and knight-pawn special cases |
-| KRPKB | rook pawns and bishop-controlled promotion paths |
-| KRPPKRP | no passed pawn for the stronger side and an active defending king: drawish |
-| KPsK | all pawns on one rook file blocked by the defending king: draw |
-| KBPKB | defending king on the pawn's path on a square the bishop cannot attack, or opposite bishops: draw |
-| KBPPKB | opposite bishops with two pawns: mostly drawn unless the pawns are far apart |
-| KBPKN | defending king in front of the pawn on a square the knight's side cannot drive it from: draw |
-| KNPK | rook pawn on the seventh with the defending king in the corner: draw |
-| KNPKB | the bishop controls the pawn's path |
-| KPKP | probes the KPK bitbase ignoring the weaker pawn when it cannot matter |
+| Function | Pattern it knows                                                                                                                         |
+|----------|------------------------------------------------------------------------------------------------------------------------------------------|
+| KBPsK    | rook pawns with a bishop that does not control the queening square and the defending king in front: draw; some blocked b/g-file patterns |
+| KQKRPs   | the rook on its third rank defended by a pawn, king behind: fortress                                                                     |
+| KRPKR    | Philidor-type defences, the defending king in front of the pawn, rook pawn and knight-pawn special cases                                 |
+| KRPKB    | rook pawns and bishop-controlled promotion paths                                                                                         |
+| KRPPKRP  | no passed pawn for the stronger side and an active defending king: drawish                                                               |
+| KPsK     | all pawns on one rook file blocked by the defending king: draw                                                                           |
+| KBPKB    | defending king on the pawn's path on a square the bishop cannot attack, or opposite bishops: draw                                        |
+| KBPPKB   | opposite bishops with two pawns: mostly drawn unless the pawns are far apart                                                             |
+| KBPKN    | defending king in front of the pawn on a square the knight's side cannot drive it from: draw                                             |
+| KNPK     | rook pawn on the seventh with the defending king in the corner: draw                                                                     |
+| KNPKB    | the bishop controls the pawn's path                                                                                                      |
+| KPKP     | probes the KPK bitbase ignoring the weaker pawn when it cannot matter                                                                    |
 
 **End state.** The scaling functions with one test position per rule.
 
