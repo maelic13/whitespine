@@ -23,7 +23,7 @@ Rust toolchain: **1.98.1**, edition 2024. Chess960 is out of scope by decision.
 ### Phase 0 — Foundations, instruments and the 1.4.0 baseline
 
 - [x] **0.1** Toolchain pin, release profile and lint policy
-- [ ] **0.2** Repository hygiene: tracked lock file, line endings, honest README
+- [x] **0.2** Repository hygiene: tracked lock file, line endings, honest README
 - [ ] **0.3** Library and binary split; module plan
 - [ ] **0.4** Continuous integration on every push
 - [ ] **0.5** Game-testing lab: fastchess, books, command templates
